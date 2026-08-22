@@ -1,13 +1,13 @@
 {
   "name": "trainsync-ai",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "description": "Strength-first AI training control layer for Garmin Connect.",
   "scripts": {
     "dev": "node server.mjs",
     "test": "node --test",
-    "check": "node --check server.mjs && node --check app.js && node --check lib/workout.mjs && node --check lib/mock-garmin.mjs && node --check lib/supabase-client.js && node --check api/generate.js && node --check api/publish.js && node --check api/validate.js && node --check api/mcp.js"
+    "check": "node --check server.mjs && node --check app.js && node --check history.js && node --check progress.js && node --check profile.js && node --check lib/workout.mjs && node --check lib/progress.mjs && node --check lib/mock-garmin.mjs && node --check lib/supabase-client.js && node --check api/generate.js && node --check api/publish.js && node --check api/validate.js && node --check api/mcp.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.20.2",
