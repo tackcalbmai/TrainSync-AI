@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#090b0d" />
+  <meta name="description" content="TrainSync AI athlete profile and strength programming preferences." />
+  <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/profile.css" />
+  <title>Athlete Profile · TrainSync AI</title>
+</head>
+<body>
+  <div class="noise"></div>
+  <div class="app-shell profile-shell">
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="Back to TrainSync AI">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span><b>TRAINSYNC</b><em>AI</em></span>
+      </a>
+      <a class="profile-back" href="/">← TRAIN</a>
+    </header>
+
+    <main class="profile-main">
+      <section class="profile-intro">
+        <div class="eyebrow"><span></span> ATHLETE CONTEXT</div>
+        <h1>Make every session<br><span>fit the lifter.</span></h1>
+        <p>These settings become persistent context for TrainSync AI. A direct request always overrides your defaults.</p>
+      </section>
+
+      <section class="profile-card">
+        <div class="profile-card-head">
+          <div>
+            <div class="eyebrow subtle">PROGRAMMING PROFILE</div>
+            <h2>Training defaults</h2>
+          </div>
+          <span class="profile-state" id="profileState">LOADING…</span>
+        </div>
+
+        <form id="profileForm">
+          <div class="profile-grid">
+            <label>
+              Primary goal
+              <select id="profileGoal">
+                <option value="">No default</option>
+                <option value="strength">Strength</option>
+                <option value="hypertrophy">Muscle growth</option>
+                <option value="general_fitness">General fitness</option>
+                <option value="fat_loss">Fat loss / conditioning</option>
+              </select>
+            </label>
+
+            <label>
+              Experience
+              <select id="profileExperience">
+                <option value="">Not set</option>
+                <option value="beginner">Beginner</option>
+                <option value="intermediate">Intermediate</option>
+                <option value="advanced">Advanced</option>
+              </select>
+            </label>
+
+            <label>
+              Default session
+              <div class="input-with-unit"><input id="profileMinutes" type="number" min="15" max="180" step="5" value="50" /><span>MIN</span></div>
+            </label>
+
+            <label>
+              Units
+              <select id="profileUnits">
+                <option value="metric">Metric · kg</option>
+                <option value="imperial">Imperial · lb</option>
+              </select>
+            </label>
+
+            <label class="wide-field">
+              Timezone
+              <input id="profileTimezone" type="text" value="Europe/Riga" autocomplete="off" />
+            </label>
+          </div>
+
+          <fieldset class="equipment-fieldset">
+            <legend>Available equipment</legend>
+            <p>AI will stay inside this equipment list when it is set.</p>
+            <div class="equipment-grid" id="equipmentGrid">
+              <label><input type="checkbox" value="barbell" /><span>Barbell</span></label>
+              <label><input type="checkbox" value="dumbbells" /><span>Dumbbells</span></label>
+              <label><input type="checkbox" value="bench" /><span>Bench</span></label>
+              <label><input type="checkbox" value="rack" /><span>Rack</span></label>
+              <label><input type="checkbox" value="cables" /><span>Cables</span></label>
+              <label><input type="checkbox" value="machines" /><span>Machines</span></label>
+              <label><input type="checkbox" value="pull_up_bar" /><span>Pull-up bar</span></label>
+              <label><input type="checkbox" value="kettlebells" /><span>Kettlebells</span></label>
+              <label><input type="checkbox" value="bodyweight" /><span>Bodyweight</span></label>
+            </div>
+          </fieldset>
+
+          <div class="profile-actions">
+            <button class="profile-signout" id="signOutButton" type="button">SIGN OUT</button>
+            <button class="profile-save" id="profileSave" type="submit">SAVE PROFILE <b>↗</b></button>
+          </div>
+        </form>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="/profile.js"></script>
+</body>
+</html>
