@@ -113,6 +113,16 @@ async function createImport(token, row) {
   return Array.isArray(rows) ? rows[0] : rows;
 }
 
+async function createImportRaceSafe(token, userId, providerActivityId, fileHash, row) {
+  try {
+    return await createImport(token, row);
+  } catch (error) {
+    const raced = await existingImport(token, userId, providerActivityId, fileHash).catch(() => null);
+    if (raced) return raced;
+    throw error;
+  }
+}
+
 async function patchImport(token, id, patch) {
   await rest(token, `garmin_activity_imports?id=eq.${encodeURIComponent(id)}`, {
     method: "PATCH",
@@ -157,6 +167,17 @@ function providerState() {
   };
 }
 
+function duplicateResponse(res, activity, importRow) {
+  return res.status(200).json({
+    imported: true,
+    duplicate: true,
+    providerActivityId: activity.providerActivityId,
+    workoutSessionId: importRow.workout_session_id,
+    match: importRow.metadata?.match || null,
+    activity,
+  });
+}
+
 export default async function handler(req, res) {
   if (!["GET", "POST"].includes(req.method)) return res.status(405).json({ error: "METHOD_NOT_ALLOWED" });
 
@@ -180,20 +201,11 @@ export default async function handler(req, res) {
 
   const providerActivityId = activity.providerActivityId;
   const duplicate = await existingImport(token, user.id, providerActivityId, activity.fileHash).catch(() => null);
-  if (duplicate?.status === "imported") {
-    return res.status(200).json({
-      imported: true,
-      duplicate: true,
-      providerActivityId,
-      workoutSessionId: duplicate.workout_session_id,
-      match: duplicate.metadata?.match || null,
-      activity,
-    });
-  }
+  if (duplicate?.status === "imported") return duplicateResponse(res, activity, duplicate);
 
   if (!activity.isStrength) {
     const metadata = { reason: "NOT_STRENGTH_ACTIVITY", summary: activity.summary };
-    const ignored = duplicate || await createImport(token, {
+    const ignored = duplicate || await createImportRaceSafe(token, user.id, providerActivityId, activity.fileHash, {
       user_id: user.id,
       provider: "garmin",
       provider_activity_id: providerActivityId,
@@ -205,13 +217,14 @@ export default async function handler(req, res) {
       status: "ignored",
       metadata,
     });
-    if (duplicate) await patchImport(token, duplicate.id, { status: "ignored", metadata });
-    return res.status(422).json({ error: "NOT_STRENGTH_ACTIVITY", importId: ignored?.id || duplicate?.id, activity });
+    if (ignored?.status === "imported") return duplicateResponse(res, activity, ignored);
+    await patchImport(token, ignored.id, { status: "ignored", metadata });
+    return res.status(422).json({ error: "NOT_STRENGTH_ACTIVITY", importId: ignored?.id, activity });
   }
 
   if (!activity.sets.length) {
     const metadata = { warning: "NO_STRENGTH_SETS_FOUND", summary: activity.summary };
-    const parsed = duplicate || await createImport(token, {
+    const parsed = duplicate || await createImportRaceSafe(token, user.id, providerActivityId, activity.fileHash, {
       user_id: user.id,
       provider: "garmin",
       provider_activity_id: providerActivityId,
@@ -223,8 +236,9 @@ export default async function handler(req, res) {
       status: "parsed",
       metadata,
     });
-    if (duplicate) await patchImport(token, duplicate.id, { status: "parsed", metadata });
-    return res.status(422).json({ error: "NO_STRENGTH_SETS_FOUND", importId: parsed?.id || duplicate?.id, activity });
+    if (parsed?.status === "imported") return duplicateResponse(res, activity, parsed);
+    await patchImport(token, parsed.id, { status: "parsed", metadata });
+    return res.status(422).json({ error: "NO_STRENGTH_SETS_FOUND", importId: parsed?.id, activity });
   }
 
   const candidateWorkouts = await plannedWorkouts(token, user.id).catch(() => []);
@@ -234,7 +248,7 @@ export default async function handler(req, res) {
   let importRow = duplicate;
   const baseMetadata = { summary: activity.summary, match };
   if (!importRow) {
-    importRow = await createImport(token, {
+    importRow = await createImportRaceSafe(token, user.id, providerActivityId, activity.fileHash, {
       user_id: user.id,
       provider: "garmin",
       provider_activity_id: providerActivityId,
@@ -246,6 +260,7 @@ export default async function handler(req, res) {
       status: "parsed",
       metadata: baseMetadata,
     });
+    if (importRow?.status === "imported") return duplicateResponse(res, activity, importRow);
   } else {
     await patchImport(token, importRow.id, {
       fit_file_hash: activity.fileHash,
