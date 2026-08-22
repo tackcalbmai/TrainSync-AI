@@ -10,6 +10,6 @@
     "check": "node --check server.mjs && node --check app.js && node --check lib/workout.mjs && node --check lib/mock-garmin.mjs && node --check lib/supabase-client.js && node --check api/generate.js && node --check api/publish.js && node --check api/validate.js"
   },
   "engines": {
-    "node": ">=22"
+    "node": "22.x"
   }
 }
