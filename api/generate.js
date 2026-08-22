@@ -139,7 +139,7 @@ function normalizeDraft(draft) {
 }
 
 async function generateWithOpenAI(intent, timezone) {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = process.env.OPENAI_API_KEY || process.env.openai_api_key;
   if (!apiKey) {
     const error = new Error("OpenAI is not configured yet.");
     error.code = "AI_NOT_CONFIGURED";
