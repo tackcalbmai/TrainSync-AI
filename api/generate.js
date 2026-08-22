@@ -139,7 +139,7 @@ function normalizeDraft(draft) {
 }
 
 function resolveOpenAIKey() {
-  return process.env.OPENAI_API_KEY || process.env.openai_api_key || process.env.oepnai_api_key;
+  return process.env.OPENAI_API_KEY || process.env.OPENAI_APY_KEY || process.env.openai_api_key || process.env.oepnai_api_key;
 }
 
 async function generateWithOpenAI(intent, timezone) {
