@@ -220,11 +220,7 @@ async function submitAuth(event) {
 
 async function accountAction() {
   if (!currentUser()) return openAuth("signin");
-  await signOut();
-  currentWorkoutDbId = null;
-  setAuthUi();
-  renderHistory([]);
-  showToast("Signed out.");
+  location.href = "/profile";
 }
 
 function renderHistory(rows) {
