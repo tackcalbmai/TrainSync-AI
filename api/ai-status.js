@@ -15,7 +15,7 @@ export default async function handler(req, res) {
           Authorization: `Bearer ${apiKey}`,
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ model, input: "Reply only OK", max_output_tokens: 4, store: false }),
+        body: JSON.stringify({ model, input: "Reply only OK", max_output_tokens: 16, store: false }),
         signal: AbortSignal.timeout(15000)
       });
       openaiStatus = response.status;
