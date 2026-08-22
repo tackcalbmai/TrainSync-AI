@@ -39,6 +39,9 @@ function nextMonday() {
 function selectedDays() {
   return [...document.querySelectorAll('#dayGrid input:checked')].map((input) => Number(input.value)).sort((a,b) => a-b);
 }
+function selectedPriorityMuscles() {
+  return [...document.querySelectorAll('#priorityMuscleGrid input:checked')].map((input) => input.value);
+}
 function titleCase(value) {
   return String(value || "").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
@@ -193,6 +196,7 @@ $("#programForm").addEventListener("submit", async (event) => {
       sessionMinutes: Number($("#sessionMinutes").value),
       weekStart: $("#weekStart").value,
       priority: $("#programPriority").value.trim(),
+      priorityMuscles: selectedPriorityMuscles(),
       timeEfficient: $("#timeEfficient").checked,
     });
     const saved = await saveGeneratedProgram(result.program);
