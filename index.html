@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#090b0d" />
+  <meta name="description" content="AI strength programming with Garmin-ready workout publishing." />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/styles.css" />
+  <title>TrainSync AI</title>
+</head>
+<body>
+  <div class="noise"></div>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="#" aria-label="TrainSync AI home">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span><b>TRAINSYNC</b><em>AI</em></span>
+      </a>
+      <div class="top-actions">
+        <button class="icon-button" id="installButton" hidden aria-label="Install app">↓</button>
+        <button class="account-button" id="accountButton" type="button">SIGN IN</button>
+        <button class="connection-pill" id="connectionPill" type="button"><span class="status-dot"></span>GARMIN <strong>MOCK</strong></button>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero-grid">
+        <div class="hero-copy">
+          <div class="eyebrow"><span></span> STRENGTH CONTROL SYSTEM</div>
+          <h1>Train hard.<br><span>Program smarter.</span></h1>
+          <p>Describe the session. TrainSync turns it into a structured strength workout and prepares it for Garmin Connect.</p>
+        </div>
+
+        <div class="command-panel">
+          <div class="panel-label"><span>AI COMMAND</span><span class="key-hint">⌘ ↵</span></div>
+          <textarea id="commandInput" rows="3" spellcheck="false" aria-label="Workout command">Create a 50-minute upper-body workout tomorrow, moderate intensity.</textarea>
+          <div class="command-footer">
+            <div class="chips" aria-label="Workout examples">
+              <button data-command="Create a 45-minute push workout tomorrow, heavy intensity.">PUSH</button>
+              <button data-command="Create a 55-minute leg workout tomorrow, moderate intensity.">LEGS</button>
+              <button data-command="Create a 45-minute full body workout tomorrow, easy intensity.">FULL BODY</button>
+            </div>
+            <button class="generate-button" id="generateButton"><span>BUILD WORKOUT</span><b>↗</b></button>
+          </div>
+          <div class="process-strip" id="processStrip" aria-live="polite"></div>
+        </div>
+      </section>
+
+      <section class="dashboard-grid">
+        <article class="workout-card primary-card">
+          <div class="card-head">
+            <div>
+              <div class="eyebrow subtle">NEXT SESSION</div>
+              <h2 id="workoutTitle">Upper Body A</h2>
+              <div class="date-line"><span id="workoutDate">Tomorrow</span> · <span id="workoutIntensity">MODERATE</span></div>
+            </div>
+            <button class="menu-button" aria-label="Workout menu">•••</button>
+          </div>
+
+          <div class="metric-row">
+            <div><span id="durationMetric">50</span><small>MIN</small></div>
+            <div><span id="exerciseMetric">6</span><small>EXERCISES</small></div>
+            <div><span id="setMetric">20</span><small>WORK SETS</small></div>
+          </div>
+
+          <div class="exercise-list" id="exerciseList"></div>
+
+          <div class="publish-row">
+            <div class="validation-state" id="validationState"><span>✓</span> WORKOUT VALID</div>
+            <button class="publish-button" id="publishButton"><span class="garmin-g">G</span><span>SEND TO GARMIN</span></button>
+          </div>
+        </article>
+
+        <aside class="side-stack">
+          <article class="mini-card garmin-card">
+            <div class="mini-head"><span>GARMIN CONNECT</span><span class="live-label">LIVE</span></div>
+            <div class="connection-main">
+              <div class="garmin-badge">G</div>
+              <div><strong>Connected</strong><small>Mock provider · safe mode</small></div>
+            </div>
+            <div class="sync-line"><span>Provider</span><strong>MockTrainingProvider</strong></div>
+            <div class="sync-line"><span>Last publish</span><strong id="lastPublish">—</strong></div>
+            <div class="sync-line"><span>Account</span><strong id="cloudSyncState">Sign in to sync</strong></div>
+          </article>
+
+          <article class="mini-card load-card">
+            <div class="mini-head"><span>STRENGTH TREND</span><span>8 WEEKS</span></div>
+            <div class="load-number"><strong>+8.4%</strong><small>training load</small></div>
+            <div class="spark" aria-label="Strength progress graph"><i style="--h:35%"></i><i style="--h:44%"></i><i style="--h:40%"></i><i style="--h:56%"></i><i style="--h:61%"></i><i style="--h:58%"></i><i style="--h:74%"></i><i style="--h:86%"></i></div>
+          </article>
+
+          <article class="mini-card history-card">
+            <div class="mini-head"><span>CLOUD HISTORY</span><span>SUPABASE</span></div>
+            <div class="history-list" id="historyList"><div class="history-empty">Sign in to sync workouts.</div></div>
+          </article>
+
+          <article class="mini-card week-card">
+            <div class="mini-head"><span>THIS WEEK</span><span>4 SESSIONS</span></div>
+            <div class="week-row"><span>MON</span><strong>UPPER</strong><em class="done">DONE</em></div>
+            <div class="week-row"><span>WED</span><strong>LOWER</strong><em class="done">DONE</em></div>
+            <div class="week-row active"><span>FRI</span><strong>UPPER</strong><em>NEXT</em></div>
+            <div class="week-row"><span>SUN</span><strong>FULL BODY</strong><em>PLANNED</em></div>
+          </article>
+        </aside>
+      </section>
+    </main>
+
+    <nav class="bottom-nav" aria-label="Primary navigation">
+      <button class="active"><span>▰</span>TRAIN</button>
+      <button><span>⌁</span>PROGRAM</button>
+      <button><span>↗</span>PROGRESS</button>
+      <button><span>✦</span>AI</button>
+    </nav>
+  </div>
+
+  <div class="auth-modal" id="authModal" hidden>
+    <div class="auth-card" role="dialog" aria-modal="true" aria-labelledby="authMode">
+      <button class="auth-close" id="authClose" aria-label="Close">×</button>
+      <div class="eyebrow"><span></span> CLOUD SYNC</div>
+      <h2 id="authMode">SIGN IN</h2>
+      <p>Save workouts securely and access them across devices.</p>
+      <form id="authForm">
+        <label>Email<input id="authEmail" type="email" autocomplete="email" required></label>
+        <label>Password<input id="authPassword" type="password" autocomplete="current-password" minlength="6" required></label>
+        <button class="auth-submit" id="authSubmit" type="submit">SIGN IN</button>
+      </form>
+      <button class="auth-switch" id="authSwitch" type="button">New here? Create account</button>
+    </div>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
