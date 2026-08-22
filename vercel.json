@@ -8,6 +8,7 @@
     { "source": "/oauth/consent", "destination": "/oauth-consent" },
     { "source": "/mcp", "destination": "/api/mcp" },
     { "source": "/integrations", "destination": "/integrations.html" },
+    { "source": "/program", "destination": "/program.html" },
     { "source": "/", "destination": "/index.html" }
   ],
   "headers": [
