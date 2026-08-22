@@ -87,6 +87,40 @@ async function authenticateUser(token) {
   }
 }
 
+async function loadAthleteProfile(token, userId) {
+  if (!token || !userId) return null;
+  try {
+    const query = new URLSearchParams({
+      select: "timezone,units,goal,experience_level,default_workout_minutes,equipment",
+      user_id: `eq.${userId}`,
+      limit: "1"
+    });
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/athlete_profiles?${query}`, {
+      headers: {
+        apikey: SUPABASE_PUBLISHABLE_KEY,
+        Authorization: `Bearer ${token}`
+      },
+      signal: AbortSignal.timeout(8000)
+    });
+    if (!response.ok) return null;
+    const rows = await response.json();
+    return Array.isArray(rows) ? (rows[0] || null) : null;
+  } catch {
+    return null;
+  }
+}
+
+function profileInstructions(profile) {
+  if (!profile) return [];
+  const context = [];
+  if (profile.goal) context.push(`Primary training goal: ${profile.goal}.`);
+  if (profile.experience_level) context.push(`Experience level: ${profile.experience_level}.`);
+  if (profile.default_workout_minutes) context.push(`Default workout duration when the user does not specify one: ${profile.default_workout_minutes} minutes.`);
+  if (Array.isArray(profile.equipment) && profile.equipment.length) context.push(`Available equipment: ${profile.equipment.join(", ")}. Unless the user explicitly requests otherwise, choose exercises that fit this equipment.`);
+  if (profile.units) context.push(`Preferred display units: ${profile.units}. TrainSync stores canonical weightKg internally.`);
+  return context;
+}
+
 function outputText(response) {
   return (response?.output || [])
     .filter((item) => item?.type === "message")
@@ -142,7 +176,7 @@ function resolveOpenAIKey() {
   return process.env.OPENAI_API_KEY || process.env.OPENAI_APY_KEY || process.env.openai_api_key || process.env.oepnai_api_key;
 }
 
-async function generateWithOpenAI(intent, timezone) {
+async function generateWithOpenAI(intent, timezone, profile) {
   const apiKey = resolveOpenAIKey();
   if (!apiKey) {
     const error = new Error("OpenAI is not configured yet.");
@@ -155,8 +189,10 @@ async function generateWithOpenAI(intent, timezone) {
   const instructions = [
     "You are TrainSync AI, a strength-training programming engine.",
     "Create realistic, practical strength workouts from the user's request.",
+    "The user's direct request always overrides profile defaults when they conflict.",
+    ...profileInstructions(profile),
     "Respect requested body parts, duration, intensity, equipment and scheduling constraints.",
-    "Choose exercises, working sets, reps and rest periods intelligently.",
+    "Choose exercises, working sets, reps and rest periods intelligently for the stated goal and experience level.",
     "Do not invent a working weight unless the user supplied enough information to justify it; use null for weightKg when uncertain.",
     "Prefer a sensible number of exercises and working sets that can actually fit the requested duration.",
     "Avoid rehabilitation, injury-treatment or medical claims. If the request is medically framed, keep programming conservative and generic.",
@@ -211,21 +247,22 @@ export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "METHOD_NOT_ALLOWED" });
 
   const intent = req.body?.intent;
-  const timezone = req.body?.timezone || "Europe/Riga";
+  const requestedTimezone = req.body?.timezone || "Europe/Riga";
   if (!intent || typeof intent !== "string") return res.status(400).json({ error: "INTENT_REQUIRED" });
 
   if (req.body?.demo === true) {
-    const workout = createWorkoutFromIntent(intent, { timezone });
+    const workout = createWorkoutFromIntent(intent, { timezone: requestedTimezone });
     const validation = validateWorkout(workout);
     return res.status(200).json({
       workout,
       validation,
       summary: workoutSummary(workout),
-      ai: { mode: "demo", model: null }
+      ai: { mode: "demo", model: null, profileApplied: false }
     });
   }
 
-  const user = await authenticateUser(bearerToken(req));
+  const token = bearerToken(req);
+  const user = await authenticateUser(token);
   if (!user) {
     return res.status(401).json({
       error: "SIGN_IN_REQUIRED",
@@ -233,8 +270,11 @@ export default async function handler(req, res) {
     });
   }
 
+  const profile = await loadAthleteProfile(token, user.id);
+  const timezone = profile?.timezone || requestedTimezone;
+
   try {
-    const generated = await generateWithOpenAI(intent, timezone);
+    const generated = await generateWithOpenAI(intent, timezone, profile);
     const validation = validateWorkout(generated.workout);
     if (!validation.valid) {
       return res.status(422).json({
@@ -251,7 +291,8 @@ export default async function handler(req, res) {
       ai: {
         mode: "openai",
         model: generated.model,
-        responseId: generated.responseId
+        responseId: generated.responseId,
+        profileApplied: Boolean(profile)
       }
     });
   } catch (error) {
