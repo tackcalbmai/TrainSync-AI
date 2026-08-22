@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   classifyExercisePerformance,
+  estimateSessionMinutes,
   fractionalMuscleVolume,
   validateProgram,
   validateProgramSession,
@@ -32,6 +33,29 @@ test("session validator warns on concentrated muscle volume but does not invent 
   assert.equal(result.valid, true);
   assert.ok(result.warnings.some((item) => item.code === "HIGH_SESSION_MUSCLE_VOLUME"));
   assert.ok(!result.errors.some((item) => item.code === "HIGH_SESSION_MUSCLE_VOLUME"));
+});
+
+test("non-competing supersets reduce estimated session time", () => {
+  const press = {
+    name: "Dumbbell Press", role: "hypertrophy_compound", primaryMuscles: ["chest"], secondaryMuscles: ["triceps"],
+    sets: Array.from({ length: 3 }, () => ({ minReps: 8, maxReps: 10, targetRir: 2, restSec: 120 })),
+  };
+  const row = {
+    name: "Cable Row", role: "hypertrophy_compound", primaryMuscles: ["upper_back"], secondaryMuscles: ["biceps"],
+    sets: Array.from({ length: 3 }, () => ({ minReps: 8, maxReps: 10, targetRir: 2, restSec: 120 })),
+  };
+  const normal = estimateSessionMinutes({ exercises: [press, row] });
+  const paired = estimateSessionMinutes({ exercises: [{ ...press, supersetGroup: "A" }, { ...row, supersetGroup: "A" }] });
+  assert.ok(paired < normal);
+  const validation = validateProgramSession({ title: "Efficient upper", exercises: [{ ...press, supersetGroup: "A" }, { ...row, supersetGroup: "A" }] });
+  assert.ok(!validation.warnings.some((item) => item.code === "COMPETING_SUPERSET"));
+});
+
+test("validator warns when a superset directly competes for the same primary muscle", () => {
+  const first = { ...bench(3), role: "hypertrophy_compound", supersetGroup: "A" };
+  const second = { ...bench(3), name: "Incline Dumbbell Press", role: "hypertrophy_compound", supersetGroup: "A" };
+  const result = validateProgramSession({ title: "Competing pair", exercises: [first, second] });
+  assert.ok(result.warnings.some((item) => item.code === "COMPETING_SUPERSET"));
 });
 
 test("program validator protects declared priorities", () => {
