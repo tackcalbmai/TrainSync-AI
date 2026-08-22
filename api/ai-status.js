@@ -6,14 +6,24 @@ export default async function handler(req, res) {
 
   let reachable = false;
   let openaiStatus = null;
+  let quotaError = null;
   if (apiKey) {
     try {
-      const response = await fetch(`https://api.openai.com/v1/models/${encodeURIComponent(model)}`, {
-        headers: { Authorization: `Bearer ${apiKey}` },
-        signal: AbortSignal.timeout(8000)
+      const response = await fetch("https://api.openai.com/v1/responses", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ model, input: "Reply only OK", max_output_tokens: 4, store: false }),
+        signal: AbortSignal.timeout(15000)
       });
       openaiStatus = response.status;
       reachable = response.ok;
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        quotaError = body?.error?.code || body?.error?.type || null;
+      }
     } catch {
       openaiStatus = 0;
     }
@@ -23,6 +33,7 @@ export default async function handler(req, res) {
     configured: Boolean(apiKey),
     reachable,
     openaiStatus,
+    quotaError,
     model,
     provider: "openai"
   });
