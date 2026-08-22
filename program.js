@@ -116,10 +116,17 @@ function renderAdjustments() {
 function prescription(exercise) {
   const first = exercise?.sets?.[0] || {};
   const count = exercise?.sets?.length || 0;
+  const metric = first.metricType || exercise?.setMetric || "reps";
+  if (metric === "duration_seconds") {
+    const min = first.minDurationSeconds ?? first.targetDurationSeconds ?? "—";
+    const max = first.maxDurationSeconds ?? first.targetDurationSeconds ?? min;
+    const target = min === max ? `${min}s` : `${min}–${max}s`;
+    return { count, target, rir: "—", rest: first.restSec ?? 0, metric };
+  }
   const min = first.minReps ?? first.targetReps ?? "—";
   const max = first.maxReps ?? first.targetReps ?? min;
-  const reps = min === max ? String(min) : `${min}–${max}`;
-  return { count, reps, rir: first.targetRir ?? "—", rest: first.restSec ?? 0 };
+  const target = min === max ? String(min) : `${min}–${max}`;
+  return { count, target, rir: first.targetRir ?? "—", rest: first.restSec ?? 0, metric };
 }
 
 function renderWeek() {
@@ -142,7 +149,7 @@ function renderWeek() {
     const dateLabel = date ? new Intl.DateTimeFormat("en", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" }).format(new Date(`${date}T12:00:00Z`)) : `DAY ${session.day_index ?? session.dayIndex}`;
     return `<section class="program-session"><div class="program-session-head"><div><strong>${escapeHtml(session.title)}</strong><small>${escapeHtml(payload.focus || "")}</small></div><div class="session-meta"><b>${escapeHtml(dateLabel.toUpperCase())}</b><small>${escapeHtml(payload.estimatedDurationMinutes || currentProgram.default_session_minutes || "—")} MIN · ${escapeHtml(String(session.status || "planned").toUpperCase())}</small></div></div>${exercises.map((exercise, index) => {
       const rx = prescription(exercise);
-      return `<div class="program-exercise"><span>${String(index + 1).padStart(2,"0")}</span><div><strong>${escapeHtml(exercise.name)}${exercise.supersetGroup ? `<small class="superset-tag">PAIR ${escapeHtml(exercise.supersetGroup)}</small>` : ""}</strong><small>${escapeHtml(titleCase(exercise.role))} · ${escapeHtml((exercise.primaryMuscles || []).join(", "))}</small></div><div class="exercise-prescription"><b>${rx.count} × ${escapeHtml(rx.reps)}</b><small>${Math.round(rx.rest / 60)}:${String(rx.rest % 60).padStart(2,"0")} REST</small></div><div class="exercise-rir"><b>${escapeHtml(rx.rir)}</b><small>RIR</small></div></div>`;
+      return `<div class="program-exercise"><span>${String(index + 1).padStart(2,"0")}</span><div><strong>${escapeHtml(exercise.name)}${exercise.supersetGroup ? `<small class="superset-tag">PAIR ${escapeHtml(exercise.supersetGroup)}</small>` : ""}</strong><small>${escapeHtml(titleCase(exercise.role))} · ${escapeHtml((exercise.primaryMuscles || []).join(", "))}</small></div><div class="exercise-prescription"><b>${rx.count} × ${escapeHtml(rx.target)}</b><small>${Math.round(rx.rest / 60)}:${String(rx.rest % 60).padStart(2,"0")} REST</small></div><div class="exercise-rir"><b>${escapeHtml(rx.rir)}</b><small>${rx.metric === "duration_seconds" ? "TIMED" : "RIR"}</small></div></div>`;
     }).join("")}</section>`;
   }).join("");
   renderDose();
@@ -201,10 +208,7 @@ $("#programForm").addEventListener("submit", async (event) => {
     });
     const saved = await saveGeneratedProgram(result.program);
     currentProgram = { ...saved, settings: saved.settings || result.program.settings, summary: result.program.summary };
-    currentSessions = result.program.sessions.map((item) => ({
-      week_index: item.weekIndex, day_index: item.dayIndex, slot_index: item.slotIndex, scheduled_date: item.scheduledDate,
-      title: item.title, status: item.status, payload: item.payload, rationale: item.rationale,
-    }));
+    currentSessions = result.program.sessions.map((item) => ({ week_index: item.weekIndex, day_index: item.dayIndex, slot_index: item.slotIndex, scheduled_date: item.scheduledDate, title: item.title, status: item.status, payload: item.payload, rationale: item.rationale }));
     currentValidation = result.validation;
     currentAdjustments = [];
     weekIndex = 1;
