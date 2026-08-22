@@ -3,6 +3,9 @@
   "framework": null,
   "cleanUrls": true,
   "rewrites": [
+    { "source": "/.well-known/oauth-protected-resource/mcp", "destination": "/api/oauth-resource" },
+    { "source": "/.well-known/oauth-protected-resource", "destination": "/api/oauth-resource" },
+    { "source": "/oauth/consent", "destination": "/oauth-consent.html" },
     { "source": "/mcp", "destination": "/api/mcp" },
     { "source": "/", "destination": "/index.html" }
   ],
