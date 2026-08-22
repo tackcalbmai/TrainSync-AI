@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#090b0d" />
+  <meta name="description" content="TrainSync AI strength progress, volume and estimated one-rep max tracking." />
+  <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/insights.css" />
+  <title>Progress · TrainSync AI</title>
+</head>
+<body>
+  <div class="noise"></div>
+  <div class="app-shell insight-shell">
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="TrainSync AI home">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span><b>TRAINSYNC</b><em>AI</em></span>
+      </a>
+      <nav class="page-links" aria-label="TrainSync sections">
+        <a href="/">TRAIN</a>
+        <a href="/history">HISTORY</a>
+        <a class="active" href="/progress">PROGRESS</a>
+        <a href="/profile">PROFILE</a>
+      </nav>
+    </header>
+
+    <main class="insight-main">
+      <section class="insight-hero">
+        <div>
+          <div class="eyebrow"><span></span> PERFORMANCE SIGNAL</div>
+          <h1>See the work.<br><span>See the change.</span></h1>
+          <p>Progress is calculated from completed set results. Estimated 1RM uses the Epley formula only for weighted sets of 12 reps or fewer.</p>
+        </div>
+        <div class="hero-status" id="progressState">LOADING…</div>
+      </section>
+
+      <section class="stat-grid" aria-label="Strength progress summary">
+        <article class="stat-card accent"><small>VOLUME · 30D</small><strong id="progressVolume">—</strong><em id="progressVolumeUnit">kg moved</em></article>
+        <article class="stat-card"><small>SESSIONS · 30D</small><strong id="progressSessions">—</strong><em>completed workouts</em></article>
+        <article class="stat-card"><small>PR EXERCISES · 30D</small><strong id="progressPrs">—</strong><em>new bests recorded</em></article>
+        <article class="stat-card"><small>4-WEEK TREND</small><strong id="progressTrend">—</strong><em>vs previous 4 weeks</em></article>
+      </section>
+
+      <section class="insight-grid">
+        <article class="insight-card">
+          <div class="insight-card-head"><h2>8-week volume</h2><span>COMPLETED SETS ONLY</span></div>
+          <div class="weekly-chart" id="weeklyChart"></div>
+        </article>
+        <aside class="insight-card">
+          <div class="insight-card-head"><h2>Personal records</h2><span>TOP LIFTS</span></div>
+          <div class="pr-list" id="prList"></div>
+        </aside>
+      </section>
+
+      <section class="insight-card" style="margin-top:18px">
+        <div class="insight-card-head"><h2>Exercise performance</h2><span id="exerciseCount">0 EXERCISES</span></div>
+        <div class="exercise-progress-list" id="exerciseProgressList"></div>
+      </section>
+    </main>
+  </div>
+
+  <nav class="insight-footer-nav" aria-label="Primary navigation">
+    <a href="/"><span>▰</span>TRAIN</a>
+    <a href="/history"><span>≡</span>HISTORY</a>
+    <a class="active" href="/progress"><span>↗</span>PROGRESS</a>
+    <a href="/profile"><span>●</span>PROFILE</a>
+  </nav>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="/progress.js"></script>
+</body>
+</html>
