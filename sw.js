@@ -1,4 +1,4 @@
-const CACHE = "trainsync-v3";
+const CACHE = "trainsync-v4";
 const ASSETS = [
   "/",
   "/index.html",
@@ -15,6 +15,10 @@ const ASSETS = [
   "/profile.html",
   "/profile.css",
   "/profile.js",
+  "/integrations",
+  "/integrations.html",
+  "/integrations.css",
+  "/integrations.js",
   "/insights.css",
   "/lib/progress.mjs",
   "/lib/supabase-client.js",
