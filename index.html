@@ -8,6 +8,7 @@
   <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="icon" href="/icon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/workout-log.css" />
   <title>TrainSync AI</title>
 </head>
 <body>
@@ -30,7 +31,7 @@
         <div class="hero-copy">
           <div class="eyebrow"><span></span> STRENGTH CONTROL SYSTEM</div>
           <h1>Train hard.<br><span>Program smarter.</span></h1>
-          <p>Describe the session. TrainSync turns it into a structured strength workout and prepares it for Garmin Connect.</p>
+          <p>Describe the session. TrainSync turns it into a structured strength workout, remembers what you actually perform, and keeps it ready for Garmin Connect.</p>
         </div>
 
         <div class="command-panel">
@@ -69,16 +70,19 @@
 
           <div class="publish-row">
             <div class="validation-state" id="validationState"><span>✓</span> WORKOUT VALID</div>
-            <button class="publish-button" id="publishButton"><span class="garmin-g">G</span><span>SEND TO GARMIN</span></button>
+            <div class="workout-actions">
+              <button class="log-button" id="logSessionButton" type="button">LOG SESSION</button>
+              <button class="publish-button mock" id="publishButton"><span class="garmin-g">G</span><span>SEND TO GARMIN</span></button>
+            </div>
           </div>
         </article>
 
         <aside class="side-stack">
           <article class="mini-card garmin-card">
-            <div class="mini-head"><span>GARMIN CONNECT</span><span class="live-label">LIVE</span></div>
+            <div class="mini-head"><span>GARMIN CONNECT</span><span class="live-label" style="color:var(--warning)">MOCK</span></div>
             <div class="connection-main">
               <div class="garmin-badge">G</div>
-              <div><strong>Connected</strong><small>Mock provider · safe mode</small></div>
+              <div><strong>Provider ready</strong><small>Mock provider · safe mode</small></div>
             </div>
             <div class="sync-line"><span>Provider</span><strong>MockTrainingProvider</strong></div>
             <div class="sync-line"><span>Last publish</span><strong id="lastPublish">—</strong></div>
@@ -86,32 +90,29 @@
           </article>
 
           <article class="mini-card load-card">
-            <div class="mini-head"><span>STRENGTH TREND</span><span>8 WEEKS</span></div>
-            <div class="load-number"><strong>+8.4%</strong><small>training load</small></div>
-            <div class="spark" aria-label="Strength progress graph"><i style="--h:35%"></i><i style="--h:44%"></i><i style="--h:40%"></i><i style="--h:56%"></i><i style="--h:61%"></i><i style="--h:58%"></i><i style="--h:74%"></i><i style="--h:86%"></i></div>
+            <div class="mini-head"><span>STRENGTH TREND</span><a href="/progress">8 WEEKS →</a></div>
+            <div class="load-number"><strong id="strengthTrendValue">—</strong><small id="strengthTrendLabel">complete a session</small></div>
+            <div class="spark" id="strengthSpark" aria-label="Strength progress graph"><i style="--h:3%"></i><i style="--h:3%"></i><i style="--h:3%"></i><i style="--h:3%"></i><i style="--h:3%"></i><i style="--h:3%"></i><i style="--h:3%"></i><i style="--h:3%"></i></div>
           </article>
 
           <article class="mini-card history-card">
-            <div class="mini-head"><span>CLOUD HISTORY</span><span>SUPABASE</span></div>
+            <div class="mini-head"><span>SAVED WORKOUTS</span><a href="/history">HISTORY →</a></div>
             <div class="history-list" id="historyList"><div class="history-empty">Sign in to sync workouts.</div></div>
           </article>
 
           <article class="mini-card week-card">
-            <div class="mini-head"><span>THIS WEEK</span><span>4 SESSIONS</span></div>
-            <div class="week-row"><span>MON</span><strong>UPPER</strong><em class="done">DONE</em></div>
-            <div class="week-row"><span>WED</span><strong>LOWER</strong><em class="done">DONE</em></div>
-            <div class="week-row active"><span>FRI</span><strong>UPPER</strong><em>NEXT</em></div>
-            <div class="week-row"><span>SUN</span><strong>FULL BODY</strong><em>PLANNED</em></div>
+            <div class="mini-head"><span>THIS WEEK</span><span id="weekSessionCount">0 SESSIONS</span></div>
+            <div id="weekList"><div class="history-empty">No scheduled sessions this week.</div></div>
           </article>
         </aside>
       </section>
     </main>
 
     <nav class="bottom-nav" aria-label="Primary navigation">
-      <button class="active"><span>▰</span>TRAIN</button>
-      <button><span>⌁</span>PROGRAM</button>
-      <button><span>↗</span>PROGRESS</button>
-      <button><span>✦</span>AI</button>
+      <a class="active" href="/"><span>▰</span>TRAIN</a>
+      <a href="/history"><span>≡</span>HISTORY</a>
+      <a href="/progress"><span>↗</span>PROGRESS</a>
+      <a href="/profile"><span>●</span>PROFILE</a>
     </nav>
   </div>
 
@@ -129,6 +130,29 @@
       <button class="auth-switch" id="authSwitch" type="button">New here? Create account</button>
     </div>
   </div>
+
+  <div class="log-modal" id="logModal" hidden>
+    <div class="log-card" role="dialog" aria-modal="true" aria-labelledby="logTitle">
+      <button class="log-close" id="logClose" type="button" aria-label="Close">×</button>
+      <div class="eyebrow"><span></span> COMPLETED SESSION</div>
+      <h2 id="logTitle">Log workout</h2>
+      <p>Planned targets are prefilled. Change them to what you actually performed. Only checked sets are saved to Progress.</p>
+      <form id="logForm">
+        <div class="log-meta-grid">
+          <label>Actual duration<input id="logDuration" type="number" min="1" max="1440" step="1" required></label>
+          <label>Finished at<input id="logFinishedAt" type="datetime-local" required></label>
+        </div>
+        <div id="logExerciseList"></div>
+        <label class="log-notes">Session notes<textarea id="logNotes" placeholder="Optional: how it felt, anything worth remembering…"></textarea></label>
+        <div class="log-hint">Loads are stored canonically in kilograms. The input follows your Athlete Profile unit preference.</div>
+        <div class="log-actions">
+          <button class="log-cancel" id="logCancel" type="button">CANCEL</button>
+          <button class="log-save" id="logSave" type="submit">SAVE COMPLETED SESSION ↗</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <script type="module" src="/app.js"></script>
 </body>
