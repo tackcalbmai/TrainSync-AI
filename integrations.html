@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#090b0d" />
+  <meta name="description" content="Garmin results sync status and FIT ingestion for TrainSync AI." />
+  <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/integrations.css" />
+  <title>Garmin Results Sync · TrainSync AI</title>
+</head>
+<body>
+  <div class="noise"></div>
+  <div class="app-shell integration-shell">
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="TrainSync AI home">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span><b>TRAINSYNC</b><em>AI</em></span>
+      </a>
+      <a class="integration-back" href="/">← TRAIN</a>
+    </header>
+
+    <main class="integration-main">
+      <section class="integration-intro">
+        <div class="eyebrow"><span></span> GARMIN RESULTS SYNC</div>
+        <h1>Watch data in.<br><span>No retyping.</span></h1>
+        <p>The result pipeline is built around Garmin activity FIT data. Official automatic Activity API delivery will switch on when Garmin reopens developer access.</p>
+      </section>
+
+      <section class="integration-stack">
+        <article class="integration-card">
+          <div class="integration-card-head">
+            <div>
+              <div class="eyebrow subtle">PROVIDER STATE</div>
+              <h2>Garmin Connect</h2>
+            </div>
+            <span class="state-pill waiting" id="providerState">WAITING FOR GARMIN ACCESS</span>
+          </div>
+          <div class="status-grid">
+            <div><small>ACTIVITY API</small><strong id="activityApiState">NOT CONNECTED</strong></div>
+            <div><small>FIT INGESTION</small><strong class="ready">READY</strong></div>
+            <div><small>AUTOMATIC SYNC</small><strong id="autoSyncState">LOCKED</strong></div>
+            <div><small>MANUAL FIT TEST</small><strong class="ready">AVAILABLE</strong></div>
+          </div>
+          <p class="provider-note">TrainSync will not use unofficial Garmin login APIs. When official access is available, Activity API delivery will feed the same ingestion pipeline automatically.</p>
+        </article>
+
+        <article class="integration-card import-card">
+          <div class="integration-card-head">
+            <div>
+              <div class="eyebrow subtle">TEST THE PIPELINE</div>
+              <h2>Import a Garmin .FIT</h2>
+            </div>
+            <span class="state-pill">AUTHENTICATED ONLY</span>
+          </div>
+          <label class="fit-drop" id="fitDrop" for="fitFile">
+            <input id="fitFile" type="file" accept=".fit,application/octet-stream" />
+            <span class="fit-icon">FIT</span>
+            <strong id="fitFileName">Choose a Garmin activity file</strong>
+            <small>Maximum 4 MB · .fit only · export ZIPs must be extracted first</small>
+          </label>
+          <div class="import-actions">
+            <div id="importHint">A strength FIT is parsed into sessions, sets, reps and weight. High-confidence matches close the planned TrainSync workout automatically.</div>
+            <button id="importButton" type="button" disabled>IMPORT FIT <b>↗</b></button>
+          </div>
+          <div class="import-result" id="importResult" hidden></div>
+        </article>
+
+        <article class="integration-card">
+          <div class="integration-card-head">
+            <div>
+              <div class="eyebrow subtle">INGESTION LOG</div>
+              <h2>Recent Garmin imports</h2>
+            </div>
+            <a class="history-link" href="/history">HISTORY →</a>
+          </div>
+          <div class="import-list" id="importList"><div class="empty-state">No Garmin activity imports yet.</div></div>
+        </article>
+      </section>
+    </main>
+
+    <nav class="bottom-nav" aria-label="Primary navigation">
+      <a href="/"><span>▰</span>TRAIN</a>
+      <a href="/history"><span>≡</span>HISTORY</a>
+      <a href="/progress"><span>↗</span>PROGRESS</a>
+      <a href="/profile"><span>●</span>PROFILE</a>
+    </nav>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="/integrations.js"></script>
+</body>
+</html>
