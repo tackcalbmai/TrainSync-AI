@@ -138,8 +138,12 @@ function normalizeDraft(draft) {
   };
 }
 
+function resolveOpenAIKey() {
+  return process.env.OPENAI_API_KEY || process.env.openai_api_key || process.env.oepnai_api_key;
+}
+
 async function generateWithOpenAI(intent, timezone) {
-  const apiKey = process.env.OPENAI_API_KEY || process.env.openai_api_key;
+  const apiKey = resolveOpenAIKey();
   if (!apiKey) {
     const error = new Error("OpenAI is not configured yet.");
     error.code = "AI_NOT_CONFIGURED";
@@ -210,7 +214,6 @@ export default async function handler(req, res) {
   const timezone = req.body?.timezone || "Europe/Riga";
   if (!intent || typeof intent !== "string") return res.status(400).json({ error: "INTENT_REQUIRED" });
 
-  // A deterministic demo is allowed without an account and never spends OpenAI tokens.
   if (req.body?.demo === true) {
     const workout = createWorkoutFromIntent(intent, { timezone });
     const validation = validateWorkout(workout);
