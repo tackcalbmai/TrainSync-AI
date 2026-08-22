@@ -71,20 +71,25 @@ function renderWorkout(workout, validation = { valid: true, errors: [] }) {
   $("#exerciseList").innerHTML = workout.exercises.map((item, index) => {
     const sets = item.sets.length;
     const reps = item.sets[0]?.targetReps ?? "—";
+    const weight = item.sets[0]?.weightKg;
     const rest = item.sets[0]?.restSec ?? 0;
+    const load = weight != null ? `${sets} × ${reps} @ ${weight} KG` : `${sets} × ${reps}`;
     return `<div class="exercise-item">
       <div class="exercise-index">${String(index + 1).padStart(2, "0")}</div>
       <div class="exercise-name"><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.group)}</small></div>
-      <div class="exercise-load"><strong>${sets} × ${reps}</strong><small>SETS × REPS</small></div>
+      <div class="exercise-load"><strong>${escapeHtml(load)}</strong><small>${weight != null ? "SETS × REPS · LOAD" : "SETS × REPS"}</small></div>
       <div class="exercise-rest"><strong>${Math.floor(rest / 60)}:${String(rest % 60).padStart(2, "0")}</strong><small>REST</small></div>
     </div>`;
   }).join("");
 }
 
-async function api(path, payload) {
+async function api(path, payload, { anonymous = false } = {}) {
+  const session = getSession();
+  const headers = { "Content-Type": "application/json" };
+  if (!anonymous && session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
   const response = await fetch(path, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify(payload),
   });
   const data = await response.json();
@@ -106,30 +111,39 @@ async function persistWorkout(workout) {
   }
 }
 
-async function buildWorkout() {
+async function buildWorkout({ demo = false } = {}) {
   const intent = commandInput.value.trim();
   if (!intent) return showToast("Describe the workout first.");
+  if (!demo && !getSession()) {
+    showToast("Sign in to use AI workout generation.");
+    openAuth("signin");
+    return;
+  }
+
   generateButton.disabled = true;
   processStrip.classList.add("active");
-  const states = ["INTERPRETING TRAINING INTENT…", "BUILDING SET / REP STRUCTURE…", "VALIDATING WORKOUT…"];
+  const states = demo
+    ? ["LOADING DEMO ENGINE…", "BUILDING SAMPLE WORKOUT…", "VALIDATING WORKOUT…"]
+    : ["UNDERSTANDING YOUR REQUEST…", "AI PROGRAMMING SETS / REPS / REST…", "VALIDATING WORKOUT…"];
   let idx = 0;
   processStrip.textContent = states[idx];
-  const pulse = setInterval(() => { idx = Math.min(idx + 1, states.length - 1); processStrip.textContent = states[idx]; }, 380);
+  const pulse = setInterval(() => { idx = Math.min(idx + 1, states.length - 1); processStrip.textContent = states[idx]; }, 420);
+
   try {
-    const result = await api("/api/generate", { intent, timezone: "Europe/Riga" });
+    const result = await api("/api/generate", { intent, timezone: "Europe/Riga", demo }, { anonymous: demo });
     currentWorkoutDbId = null;
     renderWorkout(result.workout, result.validation);
     localStorage.setItem("trainsync:lastWorkout", JSON.stringify(result.workout));
-    await persistWorkout(result.workout);
-    processStrip.textContent = "WORKOUT READY ✓";
-    showToast(`${result.workout.title} built.`, true);
+    if (!demo) await persistWorkout(result.workout);
+    processStrip.textContent = demo ? "DEMO WORKOUT READY ✓" : "AI WORKOUT READY ✓";
+    showToast(demo ? "Demo loaded. Sign in to generate with AI." : `${result.workout.title} programmed by AI.`, true);
   } catch (error) {
     processStrip.textContent = "BUILD FAILED";
     showToast(error.message);
   } finally {
     clearInterval(pulse);
     generateButton.disabled = false;
-    setTimeout(() => processStrip.classList.remove("active"), 1300);
+    setTimeout(() => processStrip.classList.remove("active"), 1500);
   }
 }
 
@@ -196,7 +210,7 @@ async function submitAuth(event) {
     closeAuth();
     if (currentWorkout) await persistWorkout(currentWorkout);
     await refreshHistory();
-    showToast("Cloud sync connected ✓", true);
+    showToast("Cloud sync connected. AI generation unlocked ✓", true);
   } catch (error) {
     showToast(error.message);
   } finally {
@@ -242,7 +256,7 @@ async function refreshHistory() {
 }
 
 for (const chip of document.querySelectorAll("[data-command]")) chip.addEventListener("click", () => { commandInput.value = chip.dataset.command; commandInput.focus(); });
-generateButton.addEventListener("click", buildWorkout);
+generateButton.addEventListener("click", () => buildWorkout());
 publishButton.addEventListener("click", publishWorkout);
 commandInput.addEventListener("keydown", (event) => { if ((event.metaKey || event.ctrlKey) && event.key === "Enter") buildWorkout(); });
 $("#accountButton").addEventListener("click", accountAction);
@@ -262,8 +276,8 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").cat
 setAuthUi();
 const stored = localStorage.getItem("trainsync:lastWorkout");
 if (stored) {
-  try { renderWorkout(JSON.parse(stored)); } catch { buildWorkout(); }
+  try { renderWorkout(JSON.parse(stored)); } catch { buildWorkout({ demo: true }); }
 } else {
-  buildWorkout();
+  buildWorkout({ demo: true });
 }
 refreshHistory();
