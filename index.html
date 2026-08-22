@@ -22,7 +22,7 @@
       <div class="top-actions">
         <button class="icon-button" id="installButton" hidden aria-label="Install app">↓</button>
         <button class="account-button" id="accountButton" type="button">SIGN IN</button>
-        <button class="connection-pill" id="connectionPill" type="button"><span class="status-dot"></span>GARMIN <strong>MOCK</strong></button>
+        <a class="connection-pill" id="connectionPill" href="/integrations" style="text-decoration:none"><span class="status-dot"></span>GARMIN <strong>MOCK</strong></a>
       </div>
     </header>
 
@@ -79,13 +79,13 @@
 
         <aside class="side-stack">
           <article class="mini-card garmin-card">
-            <div class="mini-head"><span>GARMIN CONNECT</span><span class="live-label" style="color:var(--warning)">MOCK</span></div>
+            <div class="mini-head"><span>GARMIN CONNECT</span><a href="/integrations" style="color:var(--warning);text-decoration:none">RESULTS SYNC →</a></div>
             <div class="connection-main">
               <div class="garmin-badge">G</div>
-              <div><strong>Provider ready</strong><small>Mock provider · safe mode</small></div>
+              <div><strong>Provider ready</strong><small>Mock publish · FIT result ingestion ready</small></div>
             </div>
-            <div class="sync-line"><span>Provider</span><strong>MockTrainingProvider</strong></div>
-            <div class="sync-line"><span>Last publish</span><strong id="lastPublish">—</strong></div>
+            <div class="sync-line"><span>Publishing</span><strong>MockTrainingProvider</strong></div>
+            <div class="sync-line"><span>Results</span><strong>Waiting for Garmin API access</strong></div>
             <div class="sync-line"><span>Account</span><strong id="cloudSyncState">Sign in to sync</strong></div>
           </article>
 
