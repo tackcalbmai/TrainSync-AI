@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#090b0d" />
+  <meta name="description" content="TrainSync AI completed strength workout history." />
+  <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/insights.css" />
+  <title>History · TrainSync AI</title>
+</head>
+<body>
+  <div class="noise"></div>
+  <div class="app-shell insight-shell">
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="TrainSync AI home">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span><b>TRAINSYNC</b><em>AI</em></span>
+      </a>
+      <nav class="page-links" aria-label="TrainSync sections">
+        <a href="/">TRAIN</a>
+        <a class="active" href="/history">HISTORY</a>
+        <a href="/progress">PROGRESS</a>
+        <a href="/profile">PROFILE</a>
+      </nav>
+    </header>
+
+    <main class="insight-main">
+      <section class="insight-hero">
+        <div>
+          <div class="eyebrow"><span></span> TRAINING RECORD</div>
+          <h1>Every set.<br><span>Nothing imaginary.</span></h1>
+          <p>Completed sessions live here. Volume, working sets and performance are calculated from what you actually logged — not from the planned workout.</p>
+        </div>
+        <div class="hero-status" id="historyState">LOADING…</div>
+      </section>
+
+      <section class="stat-grid" aria-label="30 day history summary">
+        <article class="stat-card"><small>SESSIONS · 30D</small><strong id="sessions30">—</strong><em>completed workouts</em></article>
+        <article class="stat-card accent"><small>VOLUME · 30D</small><strong id="volume30">—</strong><em id="volumeUnit">kg moved</em></article>
+        <article class="stat-card"><small>WORK SETS · 30D</small><strong id="sets30">—</strong><em>logged sets</em></article>
+        <article class="stat-card"><small>TRAINING TIME · 30D</small><strong id="time30">—</strong><em>completed time</em></article>
+      </section>
+
+      <section class="insight-grid">
+        <article class="insight-card">
+          <div class="insight-card-head">
+            <h2>Completed sessions</h2>
+            <span id="sessionCount">0 SESSIONS</span>
+          </div>
+          <div class="session-list" id="sessionList"></div>
+        </article>
+
+        <aside class="insight-card">
+          <div class="insight-card-head">
+            <h2>Best lifts</h2>
+            <a href="/progress">FULL PROGRESS →</a>
+          </div>
+          <div class="pr-list" id="bestLiftList"></div>
+        </aside>
+      </section>
+    </main>
+  </div>
+
+  <nav class="insight-footer-nav" aria-label="Primary navigation">
+    <a href="/"><span>▰</span>TRAIN</a>
+    <a class="active" href="/history"><span>≡</span>HISTORY</a>
+    <a href="/progress"><span>↗</span>PROGRESS</a>
+    <a href="/profile"><span>●</span>PROFILE</a>
+  </nav>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="/history.js"></script>
+</body>
+</html>
