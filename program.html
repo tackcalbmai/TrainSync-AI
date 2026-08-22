@@ -35,14 +35,29 @@
             <label>Primary goal<select id="programGoal"><option value="strength">Strength</option><option value="hypertrophy">Muscle growth</option><option value="general_fitness">General fitness</option><option value="fat_loss">Fat loss + strength</option><option value="mixed">Mixed strength + hypertrophy</option></select></label>
             <label>Program length<div class="input-unit"><input id="programWeeks" type="number" min="2" max="24" step="1" value="8"><span>WEEKS</span></div></label>
             <label>Session target<div class="input-unit"><input id="sessionMinutes" type="number" min="15" max="240" step="5" value="50"><span>MIN</span></div></label>
-            <label>Week 1 starts<input id="weekStart" type="date" required></label>
+            <label>Week 1 Monday<input id="weekStart" type="date" required></label>
           </div>
 
           <fieldset class="day-fieldset"><legend>Training days</legend><div class="day-grid" id="dayGrid">
             <label><input type="checkbox" value="1" checked><span>MON</span></label><label><input type="checkbox" value="2"><span>TUE</span></label><label><input type="checkbox" value="3" checked><span>WED</span></label><label><input type="checkbox" value="4"><span>THU</span></label><label><input type="checkbox" value="5" checked><span>FRI</span></label><label><input type="checkbox" value="6"><span>SAT</span></label><label><input type="checkbox" value="7"><span>SUN</span></label>
           </div></fieldset>
 
-          <label class="priority-field">What matters most right now?<textarea id="programPriority" rows="2" placeholder="Optional — e.g. bring up bench press and shoulders; keep legs at maintenance."></textarea></label>
+          <fieldset class="priority-muscle-fieldset"><legend>Priority muscles <small>OPTIONAL · SELECT ONLY WHAT SHOULD RECEIVE EXTRA ATTENTION</small></legend><div class="priority-muscle-grid" id="priorityMuscleGrid">
+            <label><input type="checkbox" value="chest"><span>Chest</span></label>
+            <label><input type="checkbox" value="lats"><span>Lats</span></label>
+            <label><input type="checkbox" value="upper_back"><span>Upper back</span></label>
+            <label><input type="checkbox" value="front_delts"><span>Front delts</span></label>
+            <label><input type="checkbox" value="side_delts"><span>Side delts</span></label>
+            <label><input type="checkbox" value="rear_delts"><span>Rear delts</span></label>
+            <label><input type="checkbox" value="biceps"><span>Biceps</span></label>
+            <label><input type="checkbox" value="triceps"><span>Triceps</span></label>
+            <label><input type="checkbox" value="quads"><span>Quads</span></label>
+            <label><input type="checkbox" value="hamstrings"><span>Hamstrings</span></label>
+            <label><input type="checkbox" value="glutes"><span>Glutes</span></label>
+            <label><input type="checkbox" value="calves"><span>Calves</span></label>
+          </div></fieldset>
+
+          <label class="priority-field">Anything else the program must respect?<textarea id="programPriority" rows="2" placeholder="Optional — e.g. prioritize bench strength, keep leg volume at maintenance, avoid very long sessions."></textarea></label>
 
           <label class="mode-toggle"><input id="timeEfficient" type="checkbox"><span class="mode-switch"></span><span><strong>TIME-EFFICIENT MODE</strong><small>Use evidence-supported supersets where they save time without sacrificing priority work.</small></span></label>
 
