@@ -4,11 +4,11 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="theme-color" content="#090b0d" />
-  <meta name="description" content="Garmin results sync status and FIT ingestion for TrainSync AI." />
+  <meta name="description" content="Garmin training publish and results sync status for TrainSync AI." />
   <link rel="icon" href="/icon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="/styles.css" />
   <link rel="stylesheet" href="/integrations.css" />
-  <title>Garmin Results Sync · TrainSync AI</title>
+  <title>Garmin Integration · TrainSync AI</title>
 </head>
 <body>
   <div class="noise"></div>
@@ -23,9 +23,9 @@
 
     <main class="integration-main">
       <section class="integration-intro">
-        <div class="eyebrow"><span></span> GARMIN RESULTS SYNC</div>
-        <h1>Watch data in.<br><span>No retyping.</span></h1>
-        <p>The result pipeline is built around Garmin activity FIT data. Official automatic Activity API delivery will switch on when Garmin reopens developer access.</p>
+        <div class="eyebrow"><span></span> GARMIN INTEGRATION</div>
+        <h1>Program out.<br><span>Results back.</span></h1>
+        <p>TrainSync keeps workout publishing and completed-activity ingestion as separate official Garmin boundaries. The FIT projection and ingestion engines are ready now; cloud-to-cloud Garmin APIs activate only after approved developer access and user consent.</p>
       </section>
 
       <section class="integration-stack">
@@ -35,21 +35,23 @@
               <div class="eyebrow subtle">PROVIDER STATE</div>
               <h2>Garmin Connect</h2>
             </div>
-            <span class="state-pill waiting" id="providerState">WAITING FOR GARMIN ACCESS</span>
+            <span class="state-pill waiting" id="providerState">CHECKING GARMIN STATE</span>
           </div>
           <div class="status-grid">
-            <div><small>ACTIVITY API</small><strong id="activityApiState">NOT CONNECTED</strong></div>
-            <div><small>FIT INGESTION</small><strong class="ready">READY</strong></div>
-            <div><small>AUTOMATIC SYNC</small><strong id="autoSyncState">LOCKED</strong></div>
+            <div><small>TRAINING API</small><strong id="trainingApiState">CHECKING</strong></div>
+            <div><small>ACTIVITY API</small><strong id="activityApiState">CHECKING</strong></div>
+            <div><small>FIT WORKOUT PROJECTION</small><strong id="fitProjectionState">READY</strong></div>
+            <div><small>FIT ACTIVITY INGESTION</small><strong class="ready">READY</strong></div>
+            <div><small>AUTOMATIC RESULTS</small><strong id="autoSyncState">CHECKING</strong></div>
             <div><small>MANUAL FIT TEST</small><strong class="ready">AVAILABLE</strong></div>
           </div>
-          <p class="provider-note">TrainSync will not use unofficial Garmin login APIs. When official access is available, Activity API delivery will feed the same ingestion pipeline automatically.</p>
+          <p class="provider-note" id="providerNote">TrainSync never uses unofficial Garmin login APIs and never reports a mock publish as a real Garmin connection.</p>
         </article>
 
         <article class="integration-card import-card">
           <div class="integration-card-head">
             <div>
-              <div class="eyebrow subtle">TEST THE PIPELINE</div>
+              <div class="eyebrow subtle">TEST THE RESULTS PIPELINE</div>
               <h2>Import a Garmin .FIT</h2>
             </div>
             <span class="state-pill">AUTHENTICATED ONLY</span>
