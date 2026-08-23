@@ -81,3 +81,43 @@ test("variant changes require a registered server transition", () => {
   assert.equal(other.applied, false);
   assert.equal(other.reasonCode, "VARIANT_TRANSITION_NOT_REGISTERED");
 });
+
+test("repeated fatigue can remove exactly one working set while preserving the prescription", () => {
+  const current = exercise();
+  current.sets.push({ ...current.sets[1] });
+  const before = JSON.parse(JSON.stringify(current.sets.slice(0, 2)));
+  const result = applyAdaptationDecision({
+    exercise:current,
+    decision:{ action:"reduce_or_review", reasonCode:"REPEATED_FATIGUE_SIGNAL", ruleKeys:["reduceAfterRepeatedFatigue"] },
+  });
+  assert.equal(result.applied, true);
+  assert.equal(result.reasonCode, "WORKING_SET_REMOVED_FOR_REPEATED_FATIGUE");
+  assert.equal(result.exercise.sets.length, 2);
+  assert.deepEqual(result.exercise.sets, before);
+  assert.equal(result.mutation.removedWorkingSets, 1);
+  assert.equal(result.mutation.beforeWorkingSets, 3);
+  assert.equal(result.mutation.afterWorkingSets, 2);
+  assert.equal(result.mutation.temporary, true);
+  assert.ok(result.ruleKeys.includes("reduceAfterRepeatedFatigue"));
+});
+
+test("fatigue reduction never pushes an exercise below two working sets", () => {
+  const result = applyAdaptationDecision({
+    exercise:exercise(),
+    decision:{ action:"reduce_or_review", reasonCode:"REPEATED_FATIGUE_SIGNAL", ruleKeys:["reduceAfterRepeatedFatigue"] },
+  });
+  assert.equal(result.applied, false);
+  assert.equal(result.reasonCode, "MINIMUM_WORKING_SETS_REACHED");
+  assert.equal(result.beforeWorkingSets, 2);
+  assert.equal(result.minimumWorkingSets, 2);
+});
+
+test("generic review decisions do not mutate the next prescription", () => {
+  const result = applyAdaptationDecision({
+    exercise:exercise(),
+    decision:{ action:"reduce_or_review", reasonCode:"REPEATED_UNDERPERFORMANCE", ruleKeys:["reduceAfterRepeatedFatigue"] },
+  });
+  assert.equal(result.applied, false);
+  assert.equal(result.reasonCode, "REVIEW_REQUIRED");
+  assert.equal(result.exercise.sets.length, 2);
+});

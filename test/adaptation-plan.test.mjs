@@ -20,6 +20,10 @@ function resultRows(sessionId, date, exerciseKey = "push_up", actualReps = 11, t
   }));
 }
 
+function fatigueRows(sessionId, date, exerciseKey = "push_up") {
+  return resultRows(sessionId, date, exerciseKey, 6).map((row) => ({ ...row, target_rir:2, rpe:10 }));
+}
+
 function pushupExercise() {
   return {
     exerciseKey:"push_up",
@@ -90,6 +94,27 @@ test("Garmin-like top range without reported effort stays lower confidence", () 
   assert.equal(performance.state, "top_range_completed");
   assert.equal(performance.effortMatchedTarget, false);
   assert.ok(performance.confidence <= 0.62);
+});
+
+test("two consecutive fatigue signals reduce only the next exercise volume by one working set", () => {
+  const current = { id:"ps2", program_id:"p1", scheduled_date:"2026-09-02", payload:{ exercises:[pushupExercise()] } };
+  const workout = { id:"ws2", program_session_id:"ps2", status:"completed" };
+  const history = [
+    ...fatigueRows("ws2", "2026-09-02T18:00:00Z"),
+    ...fatigueRows("ws1", "2026-08-31T18:00:00Z"),
+  ];
+  const future = [{ id:"ps3", program_id:"p1", scheduled_date:"2026-09-04", status:"planned", revision:3, payload:{ exercises:[pushupExercise()] } }];
+  const plan = buildPostSessionAdaptationPlan({ completedProgramSession:current, completedWorkoutSession:workout, setResults:history, futureProgramSessions:future });
+  assert.equal(plan.valid, true);
+  assert.equal(plan.proposals.length, 1);
+  assert.equal(plan.proposals[0].decision.action, "reduce_or_review");
+  assert.equal(plan.proposals[0].decision.reasonCode, "REPEATED_FATIGUE_SIGNAL");
+  assert.equal(plan.proposals[0].applied, true);
+  assert.equal(plan.proposals[0].mutation.reasonCode, "WORKING_SET_REMOVED_FOR_REPEATED_FATIGUE");
+  assert.equal(plan.proposals[0].newPayload.exercises[0].sets.length, 2);
+  assert.equal(plan.proposals[0].expectedRevision, 3);
+  assert.ok(plan.proposals[0].audit.evidence_rule_keys.includes("reduceAfterRepeatedFatigue"));
+  assert.equal(plan.proposals[0].audit.metrics_snapshot.mutation.removedWorkingSets, 1);
 });
 
 test("program-session provenance is mandatory for automatic adaptation", () => {
