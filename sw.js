@@ -1,4 +1,4 @@
-const CACHE = "trainsync-v12";
+const CACHE = "trainsync-v13";
 const ASSETS = [
   "/", "/index.html", "/styles.css", "/workout-log.css", "/auth-ui.js", "/app.js",
   "/reset-password", "/reset-password.html", "/reset-password.js",
@@ -7,7 +7,7 @@ const ASSETS = [
   "/progress", "/progress.html", "/progress.js",
   "/profile", "/profile.html", "/profile.css", "/account-security.css", "/profile.js", "/account-security.js",
   "/integrations", "/integrations.html", "/integrations.css", "/integrations.js",
-  "/insights.css", "/lib/progress.mjs", "/lib/workout.mjs", "/lib/programming-engine.mjs", "/lib/program-client.js", "/lib/program-session-workout.mjs", "/lib/train-program-bridge.js", "/lib/exercise-catalog.mjs", "/lib/auth-redirect.mjs", "/lib/supabase-client.js",
+  "/insights.css", "/lib/progress.mjs", "/lib/workout.mjs", "/lib/programming-engine.mjs", "/lib/program-client.js", "/lib/program-session-workout.mjs", "/lib/train-program-bridge.js", "/lib/exercise-catalog.mjs", "/lib/auth-redirect.mjs", "/lib/password-policy.mjs", "/lib/supabase-client.js",
   "/icon.svg", "/manifest.webmanifest"
 ];
 self.addEventListener("install", (event) => { self.skipWaiting(); event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(ASSETS))); });

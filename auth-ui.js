@@ -1,4 +1,12 @@
-import { consumeAuthRedirect, requestPasswordReset } from "./lib/supabase-client.js";
+import { validateNewPassword } from "./lib/password-policy.mjs";
+import {
+  consumeAuthRedirect,
+  getAuthUser,
+  getSession,
+  refreshSession,
+  requestPasswordReset,
+  signOut,
+} from "./lib/supabase-client.js";
 
 const RECOVERY_FLAG = "trainsync:password-recovery";
 
@@ -50,6 +58,13 @@ function setRecoveryMode() {
   document.querySelector("#authEmail")?.focus();
 }
 
+function syncPasswordAutocomplete() {
+  const modal = document.querySelector("#authModal");
+  const password = document.querySelector("#authPassword");
+  if (!modal || !password || modal.dataset.mode === "recovery") return;
+  password.autocomplete = modal.dataset.mode === "signup" ? "new-password" : "current-password";
+}
+
 function installRecoveryUi() {
   const form = document.querySelector("#authForm");
   const switchButton = document.querySelector("#authSwitch");
@@ -71,10 +86,21 @@ function installRecoveryUi() {
     if (event.target?.id === "authModal") restoreAuthForm();
   });
   switchButton.addEventListener("click", restoreAuthForm, { capture:true });
+  switchButton.addEventListener("click", () => queueMicrotask(syncPasswordAutocomplete));
 
   form.addEventListener("submit", async (event) => {
     const modal = document.querySelector("#authModal");
-    if (modal?.dataset.mode !== "recovery") return;
+    const mode = modal?.dataset.mode || "signin";
+    if (mode === "signup") {
+      const verdict = validateNewPassword(document.querySelector("#authPassword")?.value || "");
+      if (!verdict.valid) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        toast(verdict.message);
+      }
+      return;
+    }
+    if (mode !== "recovery") return;
     event.preventDefault();
     event.stopImmediatePropagation();
     const email = String(document.querySelector("#authEmail")?.value || "").trim();
@@ -96,19 +122,41 @@ function installRecoveryUi() {
 }
 
 async function bootstrapAuthRedirect() {
-  if (!window.location.hash) return;
+  if (!window.location.hash) return false;
   try {
     const result = await consumeAuthRedirect();
-    if (!result) return;
+    if (!result) return false;
     if (result.type === "recovery") {
       sessionStorage.setItem(RECOVERY_FLAG, "1");
       window.location.replace("/reset-password");
-      return;
+      return true;
     }
     sessionStorage.setItem("trainsync:auth-message", "Email confirmed. You are signed in.");
     window.location.reload();
+    return true;
   } catch (error) {
     sessionStorage.setItem("trainsync:auth-message", error?.message || "Authentication link could not be completed.");
+    window.location.reload();
+    return true;
+  }
+}
+
+async function validateStoredAuthSession() {
+  if (window.location.hash) return;
+  const existing = getSession();
+  if (!existing?.access_token) return;
+  try {
+    await getAuthUser(existing.access_token);
+    return;
+  } catch (error) {
+    if (Number(error?.status) !== 401 || !existing.refresh_token) return;
+  }
+  try {
+    await refreshSession();
+  } catch (error) {
+    if (![400, 401, 403].includes(Number(error?.status))) return;
+    await signOut();
+    sessionStorage.setItem("trainsync:auth-message", "Your session expired. Sign in again.");
     window.location.reload();
   }
 }
@@ -120,3 +168,4 @@ if (authMessage) {
   setTimeout(() => toast(authMessage, /confirmed|signed in/i.test(authMessage)), 0);
 }
 bootstrapAuthRedirect();
+validateStoredAuthSession();
