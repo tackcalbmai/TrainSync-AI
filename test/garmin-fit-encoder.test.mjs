@@ -51,6 +51,8 @@ test("official FIT SDK encodes a CRC-valid strength workout binary", () => {
   assert.equal(encoded.encoderVersion, GARMIN_FIT_ENCODER_VERSION);
   assert.equal(encoded.serialNumber, 123456);
   assert.equal(encoded.fileName, "fit-binary-test.fit");
+  assert.equal(encoded.targetPolicy, "strict_exact_v1");
+  assert.match(encoded.targetPolicyVersion, /^2026-08-23\./);
 
   const messages = decoded(encoded);
   assert.equal(messages.fileIdMesgs.length, 1);
@@ -61,7 +63,7 @@ test("official FIT SDK encodes a CRC-valid strength workout binary", () => {
   assert.equal(messages.workoutMesgs[0].numValidSteps, 3);
 });
 
-test("exact reps, rests and reviewed exercise ids survive FIT round trip", () => {
+test("exact reps, rests, effort notes and reviewed exercise ids survive FIT round trip", () => {
   const result = encodeAndInspectGarminFitWorkout(makeWorkout([exactPushUp()]), {
     timeCreated:"2026-08-23T18:00:00.000Z",
   });
@@ -110,14 +112,35 @@ test("physical exercise weight survives FIT profile scaling", () => {
   assert.equal(step.exerciseWeight, 20);
 });
 
-test("unresolved rep ranges are blocked before FIT binary creation", () => {
+test("unresolved rep ranges are blocked before FIT binary creation with device-verification metadata", () => {
   const exercise = exactPushUp();
-  exercise.sets = [{ metricType:"reps", minReps:8, maxReps:10, targetReps:null, restSec:90 }];
+  exercise.sets = [{ metricType:"reps", minReps:8, maxReps:10, targetReps:null, targetRir:2, restSec:90 }];
   assert.throws(
     () => encodeGarminFitWorkout(makeWorkout([exercise])),
     (error) => {
       assert.ok(error instanceof GarminFitEncoderError);
-      assert.equal(error.code, "FIT_TARGET_RANGE_POLICY_REQUIRED");
+      assert.equal(error.code, "GARMIN_RANGE_DEVICE_VERIFICATION_REQUIRED");
+      assert.equal(error.details.targetPolicy.publishReady, false);
+      assert.equal(error.details.targetPolicy.deviceVerificationRequired, true);
+      assert.equal(error.details.targetPolicy.candidatePolicy.key, "open_range_preview_v1");
+      assert.deepEqual(error.details.targetPolicy.ranges.map((item) => [item.min, item.max, item.targetRir]), [[8, 10, 2]]);
+      return true;
+    },
+  );
+});
+
+test("unresolved duration ranges are also blocked rather than coerced into one time target", () => {
+  const workout = makeWorkout([{
+    exerciseKey:"front_plank",
+    name:"Front Plank",
+    sets:[{ metricType:"duration_seconds", minDurationSeconds:30, maxDurationSeconds:45, targetDurationSeconds:null, restSec:45 }],
+  }]);
+  assert.throws(
+    () => encodeGarminFitWorkout(workout),
+    (error) => {
+      assert.ok(error instanceof GarminFitEncoderError);
+      assert.equal(error.code, "GARMIN_RANGE_DEVICE_VERIFICATION_REQUIRED");
+      assert.equal(error.details.targetPolicy.ranges[0].metricType, "duration_seconds");
       return true;
     },
   );

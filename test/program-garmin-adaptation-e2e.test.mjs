@@ -101,7 +101,7 @@ test("PROGRAM -> TRAIN -> FIT -> completed sets preserves canonical execution co
 
   const readiness = garminFitProjectionReadiness(workout);
   assert.equal(readiness.ready, true);
-  assert.equal(readiness.reasonCode, "FIT_PROJECTION_READY");
+  assert.equal(readiness.reasonCode, "GARMIN_EXACT_TARGET_READY");
 
   const encoded = encodeAndInspectGarminFitWorkout(workout, { timeCreated:"2026-08-23T18:00:00Z", serialNumber:424242 });
   assert.equal(encoded.inspection.integrity, true);
@@ -174,10 +174,13 @@ test("ordinary TrainSync rep-range program stays valid but is explicitly not FIT
 
   const readiness = garminFitProjectionReadiness(workout);
   assert.equal(readiness.ready, false);
-  assert.equal(readiness.reasonCode, "TARGET_RANGE_PROVIDER_POLICY_REQUIRED");
+  assert.equal(readiness.publishReady, false);
+  assert.equal(readiness.reasonCode, "GARMIN_RANGE_DEVICE_VERIFICATION_REQUIRED");
+  assert.equal(readiness.rangePreviewAvailable, true);
+  assert.equal(readiness.deviceVerificationRequired, true);
   assert.throws(() => encodeGarminFitWorkout(workout), (error) => {
     assert.ok(error instanceof GarminFitEncoderError);
-    assert.equal(error.code, "FIT_TARGET_RANGE_POLICY_REQUIRED");
+    assert.equal(error.code, "GARMIN_RANGE_DEVICE_VERIFICATION_REQUIRED");
     return true;
   });
 });
