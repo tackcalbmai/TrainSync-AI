@@ -14,15 +14,27 @@ function decodeBase64Fit(value) { if (typeof value !== "string" || !value.trim()
 async function lookupImport(token, userId, field, value) { if (!value) return null; const query = new URLSearchParams({ select: "id,provider_activity_id,fit_file_hash,status,workout_session_id,metadata,created_at,updated_at", user_id: `eq.${userId}`, [field]: `eq.${value}`, limit: "1" }); const rows = await rest(token, `garmin_activity_imports?${query}`); return Array.isArray(rows) ? (rows[0] || null) : null; }
 async function existingImport(token, userId, providerActivityId, fileHash) { return await lookupImport(token, userId, "provider_activity_id", providerActivityId) || await lookupImport(token, userId, "fit_file_hash", fileHash); }
 async function recentImports(token, userId) { const query = new URLSearchParams({ select: "id,provider_activity_id,sport,sub_sport,started_at,completed_at,status,error_code,metadata,created_at,updated_at", user_id: `eq.${userId}`, order: "created_at.desc", limit: "10" }); return rest(token, `garmin_activity_imports?${query}`); }
-async function plannedWorkouts(token, userId) { const query = new URLSearchParams({ select: "id,title,sport,status,scheduled_date,timezone,estimated_duration_minutes,payload,created_at,updated_at", user_id: `eq.${userId}`, order: "scheduled_date.desc.nullslast,created_at.desc", limit: "30" }); const rows = await rest(token, `workouts?${query}`); return (Array.isArray(rows) ? rows : []).filter((row) => !["completed", "archived"].includes(row.status)); }
+async function plannedWorkouts(token, userId) { const query = new URLSearchParams({ select: "id,title,sport,status,scheduled_date,timezone,estimated_duration_minutes,payload,created_at,updated_at", user_id: `eq.${userId}`, order: "scheduled_date.desc.nullslast,created_at.desc", limit: "30" }); const rows = await rest(token, `workouts?${query}`); return (Array.isArray(rows) ? rows : []).filter((row) => !["completed", "archived"].includes(row.status)).map((row) => ({ ...row, matchSource: "workout" })); }
+async function athleteTimezone(token, userId) { const q = new URLSearchParams({ select:"timezone", user_id:`eq.${userId}`, limit:"1" }); const rows = await rest(token, `athlete_profiles?${q}`); return rows?.[0]?.timezone || "UTC"; }
+async function activeProgramSessions(token, userId) {
+  const pq = new URLSearchParams({ select:"id", user_id:`eq.${userId}`, status:"eq.active", order:"updated_at.desc", limit:"1" });
+  const programs = await rest(token, `training_programs?${pq}`);
+  const programId = programs?.[0]?.id;
+  if (!programId) return [];
+  const timezone = await athleteTimezone(token, userId).catch(() => "UTC");
+  const q = new URLSearchParams({ select:"id,program_id,title,status,scheduled_date,workout_id,payload,rationale,created_at,updated_at", user_id:`eq.${userId}`, program_id:`eq.${programId}`, status:"in.(planned,generated)", order:"scheduled_date.asc", limit:"40" });
+  const rows = await rest(token, `program_sessions?${q}`);
+  return (Array.isArray(rows) ? rows : []).map((row) => ({ ...row, timezone, sport:"strength", matchSource:"program_session" }));
+}
 async function createImport(token, row) { const rows = await rest(token, "garmin_activity_imports", { method: "POST", headers: { Prefer: "return=representation" }, body: JSON.stringify(row) }); return Array.isArray(rows) ? rows[0] : rows; }
 async function createImportRaceSafe(token, userId, providerActivityId, fileHash, row) { try { return await createImport(token, row); } catch (error) { const raced = await existingImport(token, userId, providerActivityId, fileHash).catch(() => null); if (raced) return raced; throw error; } }
 async function patchImport(token, id, patch) { await rest(token, `garmin_activity_imports?id=eq.${encodeURIComponent(id)}`, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ ...patch, updated_at: new Date().toISOString() }) }); }
 async function createSession(token, row) { const rows = await rest(token, "workout_sessions", { method: "POST", headers: { Prefer: "return=representation" }, body: JSON.stringify(row) }); return Array.isArray(rows) ? rows[0] : rows; }
 async function cleanupSession(token, sessionId) { if (!sessionId) return; try { await rest(token, `workout_sessions?id=eq.${encodeURIComponent(sessionId)}`, { method: "DELETE" }); } catch {} }
 async function markWorkoutCompleted(token, workout) { if (!workout?.id) return; const payload = { ...(workout.payload || {}), status: "completed" }; await rest(token, `workouts?id=eq.${encodeURIComponent(workout.id)}`, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ status: "completed", payload, updated_at: new Date().toISOString() }) }); }
+async function markProgramSessionCompleted(token, programSession) { if (!programSession?.id) return; const rationale = { ...(programSession.rationale || {}), completionSource:"garmin", completedAt:new Date().toISOString() }; await rest(token, `program_sessions?id=eq.${encodeURIComponent(programSession.id)}`, { method:"PATCH", headers:{ Prefer:"return=minimal" }, body:JSON.stringify({ status:"completed", rationale, updated_at:new Date().toISOString() }) }); }
 function providerState() { return { provider: "garmin", automaticSync: false, officialAccess: "waiting_for_garmin_access", ingestion: "ready", manualFitTest: true }; }
-function duplicateResponse(res, activity, importRow) { return res.status(200).json({ imported: true, duplicate: true, providerActivityId: activity.providerActivityId, workoutSessionId: importRow.workout_session_id, match: importRow.metadata?.match || null, activity }); }
+function duplicateResponse(res, activity, importRow) { return res.status(200).json({ imported: true, duplicate: true, providerActivityId: activity.providerActivityId, workoutSessionId: importRow.workout_session_id, match: importRow.metadata?.match || null, matchedProgramSessionId: importRow.metadata?.matchedProgramSessionId || null, activity }); }
 
 export default async function handler(req, res) {
   if (!["GET", "POST"].includes(req.method)) return res.status(405).json({ error: "METHOD_NOT_ALLOWED" });
@@ -52,11 +64,18 @@ export default async function handler(req, res) {
     return res.status(422).json({ error: "NO_STRENGTH_SETS_FOUND", importId: parsed?.id, activity });
   }
 
-  const candidateWorkouts = await plannedWorkouts(token, user.id).catch(() => []);
-  const match = matchGarminActivityToWorkout(activity, candidateWorkouts);
-  const matchedWorkout = match.matched ? candidateWorkouts.find((row) => row.id === match.best?.workoutId) || null : null;
+  const [candidatePrograms, candidateWorkouts] = await Promise.all([
+    activeProgramSessions(token, user.id).catch(() => []),
+    plannedWorkouts(token, user.id).catch(() => []),
+  ]);
+  const candidates = [...candidatePrograms, ...candidateWorkouts];
+  const match = matchGarminActivityToWorkout(activity, candidates);
+  const matchedTarget = match.matched ? candidates.find((row) => row.id === match.best?.workoutId) || null : null;
+  const matchedProgramSession = matchedTarget?.matchSource === "program_session" ? matchedTarget : null;
+  const matchedWorkout = matchedTarget?.matchSource === "workout" ? matchedTarget : null;
+  const linkedWorkoutId = matchedProgramSession?.workout_id || matchedWorkout?.id || null;
   let importRow = duplicate;
-  const baseMetadata = { summary: activity.summary, match };
+  const baseMetadata = { summary: activity.summary, match, matchedProgramSessionId:matchedProgramSession?.id || null, matchedWorkoutId:linkedWorkoutId };
   if (!importRow) {
     importRow = await createImportRaceSafe(token, user.id, providerActivityId, activity.fileHash, { user_id: user.id, provider: "garmin", provider_activity_id: providerActivityId, fit_file_hash: activity.fileHash, sport: activity.sport, sub_sport: activity.subSport, started_at: activity.startedAt, completed_at: activity.completedAt, status: "parsed", metadata: baseMetadata });
     if (importRow?.status === "imported") return duplicateResponse(res, activity, importRow);
@@ -64,11 +83,12 @@ export default async function handler(req, res) {
 
   let session = null;
   try {
-    session = await createSession(token, { user_id: user.id, workout_id: matchedWorkout?.id || null, title: matchedWorkout?.title || activity.title, started_at: activity.startedAt || activity.completedAt || new Date().toISOString(), completed_at: activity.completedAt || new Date().toISOString(), duration_seconds: activity.durationSeconds, status: "completed", notes: matchedWorkout ? "Automatically imported from Garmin FIT and matched to a TrainSync workout." : "Automatically imported from Garmin FIT activity.", total_sets: activity.summary.totalSets, total_volume_kg: activity.summary.totalVolumeKg, source: "garmin", updated_at: new Date().toISOString() });
+    const targetPlan = matchedProgramSession || matchedWorkout;
+    session = await createSession(token, { user_id: user.id, workout_id: linkedWorkoutId, program_session_id: matchedProgramSession?.id || null, title: targetPlan?.title || activity.title, started_at: activity.startedAt || activity.completedAt || new Date().toISOString(), completed_at: activity.completedAt || new Date().toISOString(), duration_seconds: activity.durationSeconds, status: "completed", notes: matchedProgramSession ? "Automatically imported from Garmin FIT and matched to an active TrainSync program session." : matchedWorkout ? "Automatically imported from Garmin FIT and matched to a TrainSync workout." : "Automatically imported from Garmin FIT activity.", total_sets: activity.summary.totalSets, total_volume_kg: activity.summary.totalVolumeKg, source: "garmin", updated_at: new Date().toISOString() });
     if (!session?.id) throw new Error("SESSION_CREATE_FAILED");
 
     const setRows = activity.sets.map((set) => {
-      const target = targetForGarminSet(set, matchedWorkout);
+      const target = targetForGarminSet(set, targetPlan);
       const timed = set.metricType === "duration_seconds";
       return {
         user_id: user.id, session_id: session.id, exercise_name: set.exerciseName, exercise_key: normalizeExerciseKey(set.exerciseName), exercise_order: set.exerciseOrder, set_index: set.setIndex,
@@ -87,11 +107,12 @@ export default async function handler(req, res) {
     });
     await rest(token, "set_results", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify(setRows) });
 
-    let workoutStatusUpdated = false;
-    if (matchedWorkout) { try { await markWorkoutCompleted(token, matchedWorkout); workoutStatusUpdated = true; } catch {} }
-    const metadata = { summary: activity.summary, title: activity.title, setCount: setRows.length, timedSetCount: setRows.filter((row) => row.metric_type === "duration_seconds").length, match, workoutStatusUpdated };
+    let workoutStatusUpdated = false, programSessionStatusUpdated = false;
+    if (linkedWorkoutId) { try { await markWorkoutCompleted(token, { ...(matchedWorkout || {}), id:linkedWorkoutId, payload:matchedWorkout?.payload || matchedProgramSession?.payload || {} }); workoutStatusUpdated = true; } catch {} }
+    if (matchedProgramSession) { try { await markProgramSessionCompleted(token, matchedProgramSession); programSessionStatusUpdated = true; } catch {} }
+    const metadata = { summary: activity.summary, title: activity.title, setCount: setRows.length, timedSetCount: setRows.filter((row) => row.metric_type === "duration_seconds").length, match, matchedProgramSessionId:matchedProgramSession?.id || null, matchedWorkoutId:linkedWorkoutId, workoutStatusUpdated, programSessionStatusUpdated };
     await patchImport(token, importRow.id, { status: "imported", workout_session_id: session.id, error_code: null, metadata });
-    return res.status(200).json({ imported: true, duplicate: false, providerActivityId, workoutSessionId: session.id, matchedWorkoutId: matchedWorkout?.id || null, workoutStatusUpdated, match, activity });
+    return res.status(200).json({ imported: true, duplicate: false, providerActivityId, workoutSessionId: session.id, matchedProgramSessionId: matchedProgramSession?.id || null, matchedWorkoutId: linkedWorkoutId, workoutStatusUpdated, programSessionStatusUpdated, match, activity });
   } catch (error) {
     await cleanupSession(token, session?.id);
     if (importRow?.id) await patchImport(token, importRow.id, { status: "failed", error_code: "IMPORT_FAILED", metadata: { message: error.message, summary: activity.summary, match } }).catch(() => {});
