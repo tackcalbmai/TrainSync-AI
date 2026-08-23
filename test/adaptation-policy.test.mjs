@@ -8,13 +8,26 @@ test("one poor session does not trigger an automatic reduction", () => {
   assert.equal(result.reasonCode, "SINGLE_POOR_EXPOSURE");
 });
 
-test("repeated fatigue triggers reduction or review rather than progression", () => {
+test("repeated high-effort underperformance triggers reduction or review without diagnosing fatigue", () => {
+  const result = decideExerciseAdaptation({ progressionMode:"load_progression", recentPerformances:[
+    { state:"high_effort_underperformance", confidence:0.9 },
+    { state:"high_effort_underperformance", confidence:0.8 },
+  ] });
+  assert.equal(result.action, "reduce_or_review");
+  assert.equal(result.reasonCode, "REPEATED_HIGH_EFFORT_UNDERPERFORMANCE");
+  assert.ok(result.ruleKeys.includes("reduceAfterRepeatedHighEffortUnderperformance"));
+  assert.match(result.reasonText, /observed performance pattern/i);
+  assert.match(result.reasonText, /not a diagnosis/i);
+});
+
+test("legacy fatigue_signal inputs remain readable but emit the new observation terminology", () => {
   const result = decideExerciseAdaptation({ progressionMode:"load_progression", recentPerformances:[
     { state:"fatigue_signal", confidence:0.9 },
     { state:"fatigue_signal", confidence:0.8 },
   ] });
   assert.equal(result.action, "reduce_or_review");
-  assert.equal(result.reasonCode, "REPEATED_FATIGUE_SIGNAL");
+  assert.equal(result.reasonCode, "REPEATED_HIGH_EFFORT_UNDERPERFORMANCE");
+  assert.ok(!result.reasonText.toLowerCase().includes("fatigue was detected"));
 });
 
 test("single controlled overperformance is held for confirmation", () => {
@@ -83,6 +96,17 @@ test("adaptation decisions create science-versioned audit payloads", () => {
   assert.equal(audit.evidence_level, "moderate");
   assert.ok(audit.evidence_claim_ids.includes("repetitions_and_load_are_both_viable_progression_tools"));
   assert.equal(audit.metrics_snapshot.completedSets, 3);
+});
+
+test("new audits normalize legacy observation labels in metrics", () => {
+  const decision = decideExerciseAdaptation({ progressionMode:"load_progression", recentPerformances:[
+    { state:"fatigue_signal", confidence:0.9 },
+    { state:"fatigue_signal", confidence:0.85 },
+  ] });
+  const audit = buildAdaptationAudit(decision, { beforeState:{ sets:3 }, afterState:{ sets:2 }, metricsSnapshot:{ recentPerformance:[{ state:"fatigue_signal" }] } });
+  assert.equal(audit.reason_code, "REPEATED_HIGH_EFFORT_UNDERPERFORMANCE");
+  assert.equal(audit.metrics_snapshot.recentPerformance[0].state, "high_effort_underperformance");
+  assert.ok(audit.evidence_rule_keys.includes("reduceAfterRepeatedHighEffortUnderperformance"));
 });
 
 test("top-range heuristic stays labeled heuristic in scientific audit", () => {
