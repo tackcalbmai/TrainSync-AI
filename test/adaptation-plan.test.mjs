@@ -11,6 +11,7 @@ function resultRows(sessionId, date, exerciseKey = "push_up", actualReps = 11, t
     target_min_reps:8,
     target_max_reps:10,
     target_weight_kg:targetWeight,
+    target_rir:null,
     reps:actualReps,
     weight_kg:actualWeight,
     rpe:null,
@@ -64,6 +65,31 @@ test("one strong exposure does not rewrite the future program", () => {
 test("using less than prescribed resistance prevents false overperformance", () => {
   const performance = classifyResultExposure(resultRows("ws1", "2026-08-31T18:00:00Z", "row", 12, 20, 16));
   assert.equal(performance.state, "underperformed");
+});
+
+test("top range with matched prescribed effort becomes a stronger progression signal", () => {
+  const rows = resultRows("ws1", "2026-08-31T18:00:00Z", "push_up", 10).map((row) => ({ ...row, target_rir:2, rpe:8.5 }));
+  const performance = classifyResultExposure(rows);
+  assert.equal(performance.state, "overperformed");
+  assert.equal(performance.effortMatchedTarget, true);
+  assert.equal(performance.effortComparedSets, 3);
+  assert.ok(performance.confidence >= 0.8);
+});
+
+test("top range reached materially harder than prescribed does not trigger progression", () => {
+  const rows = resultRows("ws1", "2026-08-31T18:00:00Z", "push_up", 10).map((row) => ({ ...row, target_rir:2, rpe:10 }));
+  const performance = classifyResultExposure(rows);
+  assert.equal(performance.state, "on_target");
+  assert.equal(performance.effortMatchedTarget, false);
+  assert.match(performance.reasons.join(" "), /higher than the prescribed RIR/i);
+});
+
+test("Garmin-like top range without reported effort stays lower confidence", () => {
+  const rows = resultRows("ws1", "2026-08-31T18:00:00Z", "push_up", 10).map((row) => ({ ...row, target_rir:2, rpe:null }));
+  const performance = classifyResultExposure(rows);
+  assert.equal(performance.state, "top_range_completed");
+  assert.equal(performance.effortMatchedTarget, false);
+  assert.ok(performance.confidence <= 0.62);
 });
 
 test("program-session provenance is mandatory for automatic adaptation", () => {
