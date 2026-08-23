@@ -10,6 +10,7 @@ import { validateProgram } from "./lib/programming-engine.mjs";
 
 const $ = (selector) => document.querySelector(selector);
 const toast = $("#toast");
+const PROGRAM_INPUT_KEY = "trainsync:program-input:v1";
 let currentProgram = null;
 let currentSessions = [];
 let currentValidation = null;
@@ -44,6 +45,55 @@ function selectedPriorityMuscles() {
 }
 function titleCase(value) {
   return String(value || "").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function programInputSnapshot() {
+  return {
+    goal: $("#programGoal")?.value || "mixed",
+    durationWeeks: Number($("#programWeeks")?.value) || 8,
+    sessionMinutes: Number($("#sessionMinutes")?.value) || 50,
+    weekStart: $("#weekStart")?.value || "",
+    availableDays: selectedDays(),
+    priority: $("#programPriority")?.value || "",
+    priorityMuscles: selectedPriorityMuscles(),
+    timeEfficient: Boolean($("#timeEfficient")?.checked),
+    savedAt: new Date().toISOString(),
+  };
+}
+
+function saveProgramInputs() {
+  try { localStorage.setItem(PROGRAM_INPUT_KEY, JSON.stringify(programInputSnapshot())); } catch {}
+}
+
+function restoreProgramInputs() {
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(PROGRAM_INPUT_KEY) || "null"); } catch { return false; }
+  if (!saved || typeof saved !== "object") return false;
+
+  if (saved.goal && $("#programGoal")) $("#programGoal").value = saved.goal;
+  if (Number(saved.durationWeeks) && $("#programWeeks")) $("#programWeeks").value = String(saved.durationWeeks);
+  if (Number(saved.sessionMinutes) && $("#sessionMinutes")) $("#sessionMinutes").value = String(saved.sessionMinutes);
+  if (saved.weekStart && $("#weekStart")) $("#weekStart").value = saved.weekStart;
+  if ($("#programPriority")) $("#programPriority").value = String(saved.priority || "");
+  if ($("#timeEfficient")) $("#timeEfficient").checked = Boolean(saved.timeEfficient);
+
+  if (Array.isArray(saved.availableDays)) {
+    const selected = new Set(saved.availableDays.map(Number));
+    for (const input of document.querySelectorAll('#dayGrid input[type="checkbox"]')) input.checked = selected.has(Number(input.value));
+  }
+  if (Array.isArray(saved.priorityMuscles)) {
+    const selected = new Set(saved.priorityMuscles.map(String));
+    for (const input of document.querySelectorAll('#priorityMuscleGrid input[type="checkbox"]')) input.checked = selected.has(input.value);
+  }
+  return true;
+}
+
+function bindProgramInputPersistence() {
+  const form = $("#programForm");
+  if (!form) return;
+  form.addEventListener("input", saveProgramInputs);
+  form.addEventListener("change", saveProgramInputs);
+  window.addEventListener("pagehide", saveProgramInputs);
 }
 
 async function apiGenerate(payload) {
@@ -191,6 +241,7 @@ $("#programForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const days = selectedDays();
   if (!days.length) return showToast("Choose at least one training day.");
+  saveProgramInputs();
   const button = $("#buildProgram");
   button.disabled = true;
   button.innerHTML = "PROGRAMMING…";
@@ -257,6 +308,8 @@ async function init() {
     if (athlete?.goal) $("#programGoal").value = athlete.goal;
     if (athlete?.default_workout_minutes) $("#sessionMinutes").value = athlete.default_workout_minutes;
   } catch {}
+  restoreProgramInputs();
+  bindProgramInputPersistence();
   try { await loadExisting(); } catch (error) { showToast(error.message); }
 }
 
