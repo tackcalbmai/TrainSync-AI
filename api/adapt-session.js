@@ -59,6 +59,22 @@ async function resolveInput(token, user, body) {
   });
   return { statusCode:200, body:{ saved:true, exerciseKey:request.exercise_key, loadsKg, adaptation } };
 }
+async function acknowledgeReview(token, user, body) {
+  const requestId = String(body?.requestId || "").trim();
+  if (!requestId) return { statusCode:400, body:{ error:"ADAPTATION_REQUEST_REQUIRED" } };
+  const request = await getRequest(token, user.id, requestId).catch(() => null);
+  if (!request) return { statusCode:404, body:{ error:"ADAPTATION_REQUEST_NOT_FOUND" } };
+  if (request.status !== "pending") return { statusCode:409, body:{ error:"ADAPTATION_REQUEST_NOT_PENDING", status:request.status } };
+  if (request.request_type !== "review") return { statusCode:400, body:{ error:"ADAPTATION_REQUEST_TYPE_UNSUPPORTED" } };
+  const now = new Date().toISOString();
+  const q = new URLSearchParams({ id:`eq.${request.id}`, user_id:`eq.${user.id}` });
+  await rest(token, `adaptation_requests?${q}`, {
+    method:"PATCH",
+    headers:{ Prefer:"return=minimal" },
+    body:JSON.stringify({ status:"dismissed", resolution:{ resolvedBy:"user_acknowledged_review", acknowledgedAt:now }, updated_at:now }),
+  });
+  return { statusCode:200, body:{ acknowledged:true, requestId:request.id, exerciseKey:request.exercise_key } };
+}
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error:"METHOD_NOT_ALLOWED" });
@@ -66,6 +82,10 @@ export default async function handler(req, res) {
   const user = await authenticate(token);
   if (!user) return res.status(401).json({ error:"SIGN_IN_REQUIRED" });
   try {
+    if (req.body?.action === "acknowledge_review") {
+      const result = await acknowledgeReview(token, user, req.body || {});
+      return res.status(result.statusCode).json(result.body);
+    }
     if (req.body?.action === "resolve_input" || req.body?.requestId) {
       const result = await resolveInput(token, user, req.body || {});
       return res.status(result.statusCode).json(result.body);

@@ -132,6 +132,27 @@ test("two consecutive fatigue signals reduce only the next exercise volume by on
   assert.equal(plan.proposals[0].audit.metrics_snapshot.mutation.removedWorkingSets, 1);
 });
 
+test("fatigue at the two-set floor becomes an explicit review requirement", () => {
+  const current = { id:"ps2", program_id:"p1", scheduled_date:"2026-09-02", payload:{ exercises:[pushupExercise()] } };
+  const workout = { id:"ws2", program_session_id:"ps2", status:"completed" };
+  const history = [
+    ...fatigueRows("ws2", "2026-09-02T18:00:00Z"),
+    ...fatigueRows("ws1", "2026-08-31T18:00:00Z"),
+  ];
+  const nextExercise = pushupExercise();
+  nextExercise.sets = nextExercise.sets.slice(0, 2);
+  const future = [{ id:"ps3", program_id:"p1", scheduled_date:"2026-09-04", status:"planned", revision:4, payload:{ exercises:[nextExercise] } }];
+  const plan = buildPostSessionAdaptationPlan({ completedProgramSession:current, completedWorkoutSession:workout, setResults:history, futureProgramSessions:future });
+  assert.equal(plan.proposals.length, 1);
+  assert.equal(plan.proposals[0].applied, false);
+  assert.equal(plan.proposals[0].mutation.reasonCode, "MINIMUM_WORKING_SETS_REACHED");
+  assert.equal(plan.requirements.length, 1);
+  assert.equal(plan.requirements[0].type, "review");
+  assert.equal(plan.requirements[0].reasonCode, "MINIMUM_WORKING_SETS_REACHED");
+  assert.equal(plan.requirements[0].minimumWorkingSets, 2);
+  assert.match(plan.requirements[0].message, /below two working sets/i);
+});
+
 test("program-session provenance is mandatory for automatic adaptation", () => {
   const current = { id:"ps1", program_id:"p1", scheduled_date:"2026-08-31", payload:{ exercises:[pushupExercise()] } };
   const workout = { id:"ws1", program_session_id:null, status:"completed" };
