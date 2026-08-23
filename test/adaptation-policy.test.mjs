@@ -30,6 +30,17 @@ test("two controlled overperformances progress according to exercise progression
   assert.equal(decideExerciseAdaptation({ progressionMode:"duration_progression", recentPerformances:history }).action, "progress_duration");
 });
 
+test("two effort-confirmed top-range exposures use the explicit RIR-aware rule", () => {
+  const history = [
+    { state:"overperformed", confidence:0.8, effortObserved:true, effortMatchedTarget:true, effortComparedSets:3 },
+    { state:"overperformed", confidence:0.8, effortObserved:true, effortMatchedTarget:true, effortComparedSets:3 },
+  ];
+  const result = decideExerciseAdaptation({ progressionMode:"reps_only", recentPerformances:history });
+  assert.equal(result.action, "progress_reps");
+  assert.equal(result.reasonCode, "REPEATED_EFFORT_CONFIRMED_TOP_RANGE");
+  assert.ok(result.ruleKeys.includes("progressionAfterRepeatedEffortConfirmedTopRange"));
+});
+
 test("two top-range completions without direct effort data are not enough to progress", () => {
   const history = [
     { state:"top_range_completed", confidence:0.62 },
@@ -83,6 +94,17 @@ test("top-range heuristic stays labeled heuristic in scientific audit", () => {
   const audit = buildAdaptationAudit(decision, { beforeState:{ maxReps:10 }, afterState:{ maxReps:11 } });
   assert.equal(audit.evidence_level, "heuristic");
   assert.ok(audit.evidence_rule_keys.includes("progressionAfterRepeatedTopRangeCompletion"));
+});
+
+test("effort-confirmed trigger also stays labeled heuristic", () => {
+  const decision = decideExerciseAdaptation({ progressionMode:"reps_only", recentPerformances:[
+    { state:"overperformed", confidence:0.8, effortMatchedTarget:true, effortComparedSets:3 },
+    { state:"overperformed", confidence:0.8, effortMatchedTarget:true, effortComparedSets:3 },
+  ] });
+  const audit = buildAdaptationAudit(decision, { beforeState:{ maxReps:10 }, afterState:{ maxReps:11 } });
+  assert.equal(audit.evidence_level, "heuristic");
+  assert.ok(audit.evidence_rule_keys.includes("progressionAfterRepeatedEffortConfirmedTopRange"));
+  assert.ok(audit.evidence_claim_ids.includes("reported_rir_is_useful_but_noisy"));
 });
 
 test("calendar week alone never forces a deload", () => {
