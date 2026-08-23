@@ -30,6 +30,28 @@ test("two controlled overperformances progress according to exercise progression
   assert.equal(decideExerciseAdaptation({ progressionMode:"duration_progression", recentPerformances:history }).action, "progress_duration");
 });
 
+test("two top-range completions without direct effort data are not enough to progress", () => {
+  const history = [
+    { state:"top_range_completed", confidence:0.62 },
+    { state:"top_range_completed", confidence:0.62 },
+  ];
+  const result = decideExerciseAdaptation({ progressionMode:"double_progression", recentPerformances:history });
+  assert.equal(result.action, "hold");
+  assert.equal(result.reasonCode, "TOP_RANGE_NEEDS_CONFIRMATION");
+});
+
+test("three consecutive top-range completions can trigger conservative progression", () => {
+  const history = [
+    { state:"top_range_completed", confidence:0.62 },
+    { state:"top_range_completed", confidence:0.62 },
+    { state:"top_range_completed", confidence:0.62 },
+  ];
+  const result = decideExerciseAdaptation({ progressionMode:"reps_only", recentPerformances:history });
+  assert.equal(result.action, "progress_reps");
+  assert.equal(result.reasonCode, "REPEATED_TOP_RANGE_COMPLETION");
+  assert.ok(result.ruleKeys.includes("progressionAfterRepeatedTopRangeCompletion"));
+});
+
 test("bodyweight variant progression refuses to invent the next movement", () => {
   const history = [{ state:"overperformed", confidence:0.8 }, { state:"overperformed", confidence:0.8 }];
   const missing = decideExerciseAdaptation({ progressionMode:"variant_progression", recentPerformances:history });
@@ -50,6 +72,17 @@ test("adaptation decisions create science-versioned audit payloads", () => {
   assert.equal(audit.evidence_level, "moderate");
   assert.ok(audit.evidence_claim_ids.includes("repetitions_and_load_are_both_viable_progression_tools"));
   assert.equal(audit.metrics_snapshot.completedSets, 3);
+});
+
+test("top-range heuristic stays labeled heuristic in scientific audit", () => {
+  const decision = decideExerciseAdaptation({ progressionMode:"reps_only", recentPerformances:[
+    { state:"top_range_completed", confidence:0.62 },
+    { state:"top_range_completed", confidence:0.62 },
+    { state:"top_range_completed", confidence:0.62 },
+  ] });
+  const audit = buildAdaptationAudit(decision, { beforeState:{ maxReps:10 }, afterState:{ maxReps:11 } });
+  assert.equal(audit.evidence_level, "heuristic");
+  assert.ok(audit.evidence_rule_keys.includes("progressionAfterRepeatedTopRangeCompletion"));
 });
 
 test("calendar week alone never forces a deload", () => {
