@@ -1,4 +1,4 @@
-const CACHE = "trainsync-v14";
+const CACHE = "trainsync-v15";
 const ASSETS = [
   "/", "/index.html", "/styles.css", "/workout-log.css", "/garmin-readiness-ui.css", "/auth-ui.js", "/app.js", "/garmin-readiness-ui.js",
   "/reset-password", "/reset-password.html", "/reset-password.js",
