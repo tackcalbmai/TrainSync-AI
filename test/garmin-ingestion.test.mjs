@@ -14,8 +14,8 @@ const workout = {
     timezone: "Europe/Riga",
     totalSets: 7,
     exercises: [
-      { name: "Barbell Bench Press", sets: [{ targetReps: 5, weightKg: 80 }, { targetReps: 5, weightKg: 80 }, { targetReps: 5, weightKg: 80 }, { targetReps: 5, weightKg: 80 }] },
-      { name: "Barbell Bent-Over Row", sets: [{ targetReps: 6, weightKg: 70 }, { targetReps: 6, weightKg: 70 }, { targetReps: 6, weightKg: 70 }] },
+      { name: "Barbell Bench Press", sets: [{ targetReps: 5, weightKg: 80, targetRir: 2 }, { targetReps: 5, weightKg: 80, targetRir: 2 }, { targetReps: 5, weightKg: 80, targetRir: 2 }, { targetReps: 5, weightKg: 80, targetRir: 2 }] },
+      { name: "Barbell Bent-Over Row", sets: [{ targetReps: 6, weightKg: 70, targetRir: 2.5 }, { targetReps: 6, weightKg: 70, targetRir: 2.5 }, { targetReps: 6, weightKg: 70, targetRir: 2.5 }] },
     ],
   },
 };
@@ -59,11 +59,12 @@ test("does not auto-link an ambiguous same-day workout", () => {
   assert.equal(match.matched, false);
 });
 
-test("maps Garmin actual set back to planned target", () => {
+test("maps Garmin actual set back to planned target including prescribed effort", () => {
   const target = targetForGarminSet({ exerciseName: "Barbell Bent Over Row", setIndex: 2 }, workout);
   assert.equal(target.plannedExercise, "Barbell Bent-Over Row");
   assert.equal(target.targetReps, 6);
   assert.equal(target.targetWeightKg, 70);
+  assert.equal(target.targetRir, 2.5);
 });
 
 test("date mismatch lowers confidence", () => {
