@@ -23,25 +23,32 @@ test("repeated-success trigger stays labelled heuristic in its exact timing", ()
   assert.match(binding.note, /exact number of exposures is not established/i);
 });
 
-test("fatigue volume adjustment is evidence-informed but its exact trigger remains heuristic", () => {
+test("performance-triggered volume adjustment is evidence-informed without diagnosing fatigue", () => {
   const claim = ADAPTATION_CLAIMS.volume_is_a_plausible_fatigue_management_lever;
-  const binding = ADAPTATION_RULE_BINDINGS.reduceAfterRepeatedFatigue;
+  const binding = ADAPTATION_RULE_BINDINGS.reduceAfterRepeatedHighEffortUnderperformance;
   assert.equal(claim.confidence, "moderate");
   assert.ok(claim.sourceIds.includes("hickmott_2022_autoreg_volume"));
   assert.ok(claim.sourceIds.includes("varela_olalla_2025_fatigue"));
+  assert.match(claim.statement, /do not establish that any particular.*was caused by fatigue/i);
   assert.equal(binding.kind, "evidence_informed_heuristic");
   assert.equal(binding.level, "heuristic");
   assert.ok(binding.claimIds.includes("volume_is_a_plausible_fatigue_management_lever"));
-  assert.match(binding.note, /exact rule/i);
+  assert.match(binding.note, /not a diagnosis of fatigue/i);
   const row = buildProgramAdjustmentAudit({
     adjustmentType: "reduce_or_review",
-    reasonCode: "REPEATED_FATIGUE_SIGNAL",
-    reasonText: "Temporarily reduce one working set after repeated fatigue signals.",
-    ruleKeys: ["reduceAfterRepeatedFatigue"],
+    reasonCode: "REPEATED_HIGH_EFFORT_UNDERPERFORMANCE",
+    reasonText: "Temporarily reduce one working set after repeated target misses at very high reported effort.",
+    ruleKeys: ["reduceAfterRepeatedHighEffortUnderperformance"],
     decisionConfidence: 0.8,
   });
   assert.equal(row.evidence_level, "heuristic");
   assert.ok(row.evidence_claim_ids.includes("volume_is_a_plausible_fatigue_management_lever"));
+});
+
+test("legacy fatigue binding remains registered only for historical audit compatibility", () => {
+  const binding = ADAPTATION_RULE_BINDINGS.reduceAfterRepeatedFatigue;
+  assert.equal(binding.level, "heuristic");
+  assert.match(binding.note, /legacy compatibility/i);
 });
 
 test("calendar deload is not represented as scientific necessity", () => {
