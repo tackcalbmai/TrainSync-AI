@@ -6,6 +6,14 @@ const count = document.querySelector("#adjustmentCount");
 let adjustments = [];
 let rendering = false;
 
+function ensureStylesheet() {
+  if (document.querySelector('link[data-adaptation-explain-style]')) return;
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = "/program-adjustment-explain.css";
+  link.dataset.adaptationExplainStyle = "true";
+  document.head.appendChild(link);
+}
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>\"]/g, (char) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[char]));
 }
@@ -53,6 +61,7 @@ async function refresh() {
   render();
 }
 
+ensureStylesheet();
 if (list) {
   const observer = new MutationObserver(() => {
     if (!rendering && adjustments.length) render();
