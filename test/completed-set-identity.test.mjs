@@ -15,6 +15,6 @@ test("legacy unknown exercise keeps explicit stored key rather than replacing it
   assert.equal(completedSetExerciseKey({ exerciseKey:"legacy_custom_press", exerciseName:"Custom Press" }), "legacy_custom_press");
 });
 
-test("unknown exercise with no explicit key falls back to stable name normalization", () => {
-  assert.equal(completedSetExerciseKey({ exerciseName:"Custom Cable Thing" }), "custom_cable_thing");
+test("unknown exercise with no explicit key falls back to the existing stable history normalization", () => {
+  assert.equal(completedSetExerciseKey({ exerciseName:"Custom Cable Thing" }), "custom-cable-thing");
 });
