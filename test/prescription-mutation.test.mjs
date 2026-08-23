@@ -33,6 +33,37 @@ test("repetition progression uses one explicit small step", () => {
   assert.equal(result.exercise.sets[0].maxReps, 11);
 });
 
+test("double progression falls back to reps when no safe higher load is known", () => {
+  const current = exercise();
+  current.sets.forEach((set) => { set.weightKg = 16; });
+  const result = applyAdaptationDecision({
+    exercise:current,
+    decision:{ action:"progress_load", progressionMode:"double_progression" },
+    availableLoadsKg:[16,20,24],
+    lastObservedLoadKg:16,
+  });
+  assert.equal(result.applied, true);
+  assert.equal(result.reasonCode, "EQUIPMENT_LIMITED_REP_FALLBACK");
+  assert.equal(result.exercise.sets[0].weightKg, 16);
+  assert.equal(result.exercise.sets[0].minReps, 9);
+  assert.equal(result.mutation.blockedLoadReason, "LOAD_JUMP_TOO_LARGE_FOR_AUTO_APPLY");
+  assert.ok(result.ruleKeys.includes("equipmentLimitedRepFallback"));
+});
+
+test("load progression does not use a reps fallback when the next load is unknown", () => {
+  const current = exercise();
+  current.progressionMode = "load_progression";
+  current.sets.forEach((set) => { set.weightKg = 50; });
+  const result = applyAdaptationDecision({
+    exercise:current,
+    decision:{ action:"progress_load", progressionMode:"load_progression" },
+    availableLoadsKg:[],
+    lastObservedLoadKg:50,
+  });
+  assert.equal(result.applied, false);
+  assert.equal(result.reasonCode, "LOAD_INVENTORY_REQUIRED");
+});
+
 test("timed progression stays time based", () => {
   const hold = { exerciseKey:"hollow_body_hold", name:"Hollow Body Hold", role:"accessory", progressionMode:"duration_progression", sets:[{ metricType:"duration_seconds", minDurationSeconds:20, maxDurationSeconds:30, restSec:45 }] };
   const result = applyAdaptationDecision({ exercise:hold, decision:{ action:"progress_duration" } });
