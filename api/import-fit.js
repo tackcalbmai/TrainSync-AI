@@ -90,8 +90,10 @@ export default async function handler(req, res) {
     const setRows = activity.sets.map((set) => {
       const target = targetForGarminSet(set, targetPlan);
       const timed = set.metricType === "duration_seconds";
+      const canonicalKey = target.plannedExerciseKey || normalizeExerciseKey(set.exerciseName);
+      const canonicalName = target.plannedExercise || set.exerciseName;
       return {
-        user_id: user.id, session_id: session.id, exercise_name: set.exerciseName, exercise_key: normalizeExerciseKey(set.exerciseName), exercise_order: set.exerciseOrder, set_index: set.setIndex,
+        user_id: user.id, session_id: session.id, exercise_name: canonicalName, exercise_key: canonicalKey, exercise_order: set.exerciseOrder, set_index: set.setIndex,
         metric_type: timed ? "duration_seconds" : "reps",
         target_reps: timed ? null : target.targetReps,
         target_min_reps: timed ? null : target.targetMinReps,
