@@ -23,6 +23,27 @@ test("repeated-success trigger stays labelled heuristic in its exact timing", ()
   assert.match(binding.note, /exact number of exposures is not established/i);
 });
 
+test("fatigue volume adjustment is evidence-informed but its exact trigger remains heuristic", () => {
+  const claim = ADAPTATION_CLAIMS.volume_is_a_plausible_fatigue_management_lever;
+  const binding = ADAPTATION_RULE_BINDINGS.reduceAfterRepeatedFatigue;
+  assert.equal(claim.confidence, "moderate");
+  assert.ok(claim.sourceIds.includes("hickmott_2022_autoreg_volume"));
+  assert.ok(claim.sourceIds.includes("varela_olalla_2025_fatigue"));
+  assert.equal(binding.kind, "evidence_informed_heuristic");
+  assert.equal(binding.level, "heuristic");
+  assert.ok(binding.claimIds.includes("volume_is_a_plausible_fatigue_management_lever"));
+  assert.match(binding.note, /exact rule/i);
+  const row = buildProgramAdjustmentAudit({
+    adjustmentType: "reduce_or_review",
+    reasonCode: "REPEATED_FATIGUE_SIGNAL",
+    reasonText: "Temporarily reduce one working set after repeated fatigue signals.",
+    ruleKeys: ["reduceAfterRepeatedFatigue"],
+    decisionConfidence: 0.8,
+  });
+  assert.equal(row.evidence_level, "heuristic");
+  assert.ok(row.evidence_claim_ids.includes("volume_is_a_plausible_fatigue_management_lever"));
+});
+
 test("calendar deload is not represented as scientific necessity", () => {
   assert.match(ADAPTATION_CLAIMS.fixed_calendar_deload_is_not_established.statement, /not established/i);
   assert.equal(ADAPTATION_RULE_BINDINGS.noAutomaticCalendarDeload.level, "emerging");
