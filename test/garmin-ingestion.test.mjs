@@ -59,12 +59,26 @@ test("does not auto-link an ambiguous same-day workout", () => {
   assert.equal(match.matched, false);
 });
 
-test("maps Garmin actual set back to planned target including prescribed effort", () => {
+test("maps Garmin actual set back to planned target including effort and set count", () => {
   const target = targetForGarminSet({ exerciseName: "Barbell Bent Over Row", setIndex: 2 }, workout);
   assert.equal(target.plannedExercise, "Barbell Bent-Over Row");
   assert.equal(target.targetReps, 6);
   assert.equal(target.targetWeightKg, 70);
   assert.equal(target.targetRir, 2.5);
+  assert.equal(target.prescribedSetCount, 3);
+});
+
+test("missing prescribed RIR remains unknown instead of becoming zero RIR", () => {
+  const withoutRir = {
+    ...workout,
+    payload: {
+      ...workout.payload,
+      exercises: [{ name:"Pull-Up", sets:[{ targetReps:6 }, { targetReps:6 }] }],
+    },
+  };
+  const target = targetForGarminSet({ exerciseName:"Pull Up", setIndex:1 }, withoutRir);
+  assert.equal(target.targetRir, null);
+  assert.equal(target.prescribedSetCount, 2);
 });
 
 test("date mismatch lowers confidence", () => {

@@ -1,4 +1,4 @@
-const CACHE = "trainsync-v8";
+const CACHE = "trainsync-v9";
 const ASSETS = [
   "/", "/index.html", "/styles.css", "/workout-log.css", "/app.js",
   "/program", "/program.html", "/program.css", "/program.js", "/program-adaptation-ui.js",
@@ -6,7 +6,7 @@ const ASSETS = [
   "/progress", "/progress.html", "/progress.js",
   "/profile", "/profile.html", "/profile.css", "/profile.js",
   "/integrations", "/integrations.html", "/integrations.css", "/integrations.js",
-  "/insights.css", "/lib/progress.mjs", "/lib/programming-engine.mjs", "/lib/program-client.js", "/lib/supabase-client.js",
+  "/insights.css", "/lib/progress.mjs", "/lib/workout.mjs", "/lib/programming-engine.mjs", "/lib/program-client.js", "/lib/program-session-workout.mjs", "/lib/train-program-bridge.js", "/lib/exercise-catalog.mjs", "/lib/supabase-client.js",
   "/icon.svg", "/manifest.webmanifest"
 ];
 self.addEventListener("install", (event) => { self.skipWaiting(); event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(ASSETS))); });
