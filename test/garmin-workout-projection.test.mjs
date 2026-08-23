@@ -40,6 +40,7 @@ test("strength workout projection pins official FIT sport, sub-sport and duratio
   assert.deepEqual(result.projection.workout.subSport, { id:20, name:"STRENGTH_TRAINING" });
   assert.deepEqual(GARMIN_FIT_ENUMS.durationType.REPS, { id:29, name:"REPS" });
   assert.deepEqual(GARMIN_FIT_ENUMS.durationType.TIME, { id:0, name:"TIME" });
+  assert.deepEqual(GARMIN_FIT_ENUMS.durationType.OPEN, { id:5, name:"OPEN" });
 });
 
 test("exact rep sets become active FIT steps with explicit rests and reviewed exercise enums", () => {
@@ -82,7 +83,10 @@ test("rep ranges are preserved as TrainSync metadata and never silently collapse
 
   const readiness = garminFitProjectionReadiness(workout(exercise));
   assert.equal(readiness.ready, false);
-  assert.equal(readiness.reasonCode, "TARGET_RANGE_PROVIDER_POLICY_REQUIRED");
+  assert.equal(readiness.publishReady, false);
+  assert.equal(readiness.reasonCode, "GARMIN_RANGE_DEVICE_VERIFICATION_REQUIRED");
+  assert.equal(readiness.rangePreviewAvailable, true);
+  assert.equal(readiness.deviceVerificationRequired, true);
 });
 
 test("exact timed holds use FIT TIME without converting them into repetitions", () => {
