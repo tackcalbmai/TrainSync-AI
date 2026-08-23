@@ -11,6 +11,16 @@ import { validateProgram } from "./lib/programming-engine.mjs";
 const $ = (selector) => document.querySelector(selector);
 const toast = $("#toast");
 const PROGRAM_INPUT_KEY = "trainsync:program-input:v1";
+const BLOCKING_WARNING_CODES = new Set([
+  "HEAVY_PRIORITY_SUPERSET",
+  "COMPETING_SUPERSET",
+  "SHARED_LIMITER_SUPERSET",
+  "HINGE_SUPERSET",
+  "PRIMARY_STRENGTH_REP_RANGE_BROAD",
+  "BODYWEIGHT_PROGRESSION_MISMATCH",
+  "TRACKABILITY_METADATA_MISSING",
+  "MIXED_SET_METRIC",
+]);
 let currentProgram = null;
 let currentSessions = [];
 let currentValidation = null;
@@ -46,6 +56,12 @@ function selectedPriorityMuscles() {
 function titleCase(value) {
   return String(value || "").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
+function blockingWarnings() {
+  return (currentValidation?.warnings || []).filter((item) => BLOCKING_WARNING_CODES.has(item.code));
+}
+function activationBlocked() {
+  return !currentValidation?.valid || blockingWarnings().length > 0;
+}
 
 function programInputSnapshot() {
   return {
@@ -60,23 +76,19 @@ function programInputSnapshot() {
     savedAt: new Date().toISOString(),
   };
 }
-
 function saveProgramInputs() {
   try { localStorage.setItem(PROGRAM_INPUT_KEY, JSON.stringify(programInputSnapshot())); } catch {}
 }
-
 function restoreProgramInputs() {
   let saved = null;
   try { saved = JSON.parse(localStorage.getItem(PROGRAM_INPUT_KEY) || "null"); } catch { return false; }
   if (!saved || typeof saved !== "object") return false;
-
   if (saved.goal && $("#programGoal")) $("#programGoal").value = saved.goal;
   if (Number(saved.durationWeeks) && $("#programWeeks")) $("#programWeeks").value = String(saved.durationWeeks);
   if (Number(saved.sessionMinutes) && $("#sessionMinutes")) $("#sessionMinutes").value = String(saved.sessionMinutes);
   if (saved.weekStart && $("#weekStart")) $("#weekStart").value = saved.weekStart;
   if ($("#programPriority")) $("#programPriority").value = String(saved.priority || "");
   if ($("#timeEfficient")) $("#timeEfficient").checked = Boolean(saved.timeEfficient);
-
   if (Array.isArray(saved.availableDays)) {
     const selected = new Set(saved.availableDays.map(Number));
     for (const input of document.querySelectorAll('#dayGrid input[type="checkbox"]')) input.checked = selected.has(Number(input.value));
@@ -87,7 +99,6 @@ function restoreProgramInputs() {
   }
   return true;
 }
-
 function bindProgramInputPersistence() {
   const form = $("#programForm");
   if (!form) return;
@@ -112,7 +123,6 @@ async function apiGenerate(payload) {
   }
   return data;
 }
-
 function dbProgramForValidation(program) {
   return {
     title: program.title,
@@ -129,7 +139,13 @@ function renderValidation() {
   if (!currentValidation) { box.textContent = ""; box.className = "validation-banner"; return; }
   if (!currentValidation.valid) {
     box.className = "validation-banner warn";
-    box.textContent = `${currentValidation.errors.length} validation error(s). This program should not be activated.`;
+    box.textContent = `${currentValidation.errors.length} validation error(s). This program must be rebuilt before activation.`;
+    return;
+  }
+  const blocking = blockingWarnings();
+  if (blocking.length) {
+    box.className = "validation-banner warn";
+    box.textContent = `REBUILD REQUIRED · ${[...new Set(blocking.map((item) => item.code.replaceAll("_", " ")))].slice(0, 3).join(" · ")}`;
     return;
   }
   const unique = [...new Map((currentValidation.warnings || []).map((item) => [item.code, item])).values()];
@@ -138,10 +154,9 @@ function renderValidation() {
     box.textContent = "✓ STRUCTURE VALID · deterministic dose, rest, effort and priority checks passed";
   } else {
     box.className = "validation-banner warn";
-    box.textContent = `VALID WITH ${unique.length} EVIDENCE / HEURISTIC WARNING${unique.length === 1 ? "" : "S"} · ${unique.slice(0, 3).map((x) => x.code.replaceAll("_", " ")).join(" · ")}`;
+    box.textContent = `VALID WITH ${unique.length} NON-BLOCKING WARNING${unique.length === 1 ? "" : "S"} · ${unique.slice(0, 3).map((x) => x.code.replaceAll("_", " ")).join(" · ")}`;
   }
 }
-
 function renderDose() {
   const summary = currentValidation?.weekSummaries?.find((item) => item.week === weekIndex);
   const dose = summary?.dose?.muscles?.fractional || {};
@@ -153,7 +168,6 @@ function renderDose() {
   const max = Math.max(...entries.map(([, value]) => Number(value)), 1);
   $("#muscleDose").innerHTML = entries.map(([muscle, value]) => `<div class="dose-row"><span>${escapeHtml(muscle.replaceAll("_", " "))}</span><div class="dose-track"><i style="--w:${Math.max(4, Math.round(Number(value) / max * 100))}%"></i></div><b>${Number(value).toFixed(Number(value) % 1 ? 1 : 0)}</b></div>`).join("");
 }
-
 function renderAdjustments() {
   $("#adjustmentCount").textContent = `${currentAdjustments.length} CHANGE${currentAdjustments.length === 1 ? "" : "S"}`;
   if (!currentAdjustments.length) {
@@ -162,7 +176,6 @@ function renderAdjustments() {
   }
   $("#adjustmentList").innerHTML = currentAdjustments.slice(0, 8).map((item) => `<div class="adjustment"><strong>${escapeHtml(titleCase(item.adjustment_type))}</strong><p>${escapeHtml(item.reason_text)}</p><small>${escapeHtml(item.evidence_level)} evidence · ${new Date(item.created_at).toLocaleDateString()}</small></div>`).join("");
 }
-
 function prescription(exercise) {
   const first = exercise?.sets?.[0] || {};
   const count = exercise?.sets?.length || 0;
@@ -178,7 +191,6 @@ function prescription(exercise) {
   const target = min === max ? String(min) : `${min}–${max}`;
   return { count, target, rir: first.targetRir ?? "—", rest: first.restSec ?? 0, metric };
 }
-
 function renderWeek() {
   const duration = Number(currentProgram?.duration_weeks || currentProgram?.durationWeeks || 1);
   weekIndex = Math.max(1, Math.min(duration, weekIndex));
@@ -204,7 +216,6 @@ function renderWeek() {
   }).join("");
   renderDose();
 }
-
 function renderProgram() {
   if (!currentProgram) { $("#programWorkspace").hidden = true; return; }
   $("#programWorkspace").hidden = false;
@@ -218,7 +229,13 @@ function renderProgram() {
   const status = currentProgram.status || "draft";
   $("#programStatus").textContent = status.toUpperCase();
   $("#programStatus").className = `program-state${status === "active" ? " active" : ""}`;
-  $("#activateProgram").hidden = status === "active";
+  const activate = $("#activateProgram");
+  activate.hidden = status === "active";
+  if (status !== "active") {
+    const blocked = activationBlocked();
+    activate.disabled = blocked;
+    activate.textContent = blocked ? "REBUILD REQUIRED" : "ACTIVATE PROGRAM";
+  }
   weekIndex = Math.min(weekIndex, Number(currentProgram.duration_weeks ?? currentProgram.durationWeeks ?? 1));
   renderValidation();
   renderWeek();
@@ -259,7 +276,16 @@ $("#programForm").addEventListener("submit", async (event) => {
     });
     const saved = await saveGeneratedProgram(result.program);
     currentProgram = { ...saved, settings: saved.settings || result.program.settings, summary: result.program.summary };
-    currentSessions = result.program.sessions.map((item) => ({ week_index: item.weekIndex, day_index: item.dayIndex, slot_index: item.slotIndex, scheduled_date: item.scheduledDate, title: item.title, status: item.status, payload: item.payload, rationale: item.rationale }));
+    currentSessions = result.program.sessions.map((item) => ({
+      week_index: item.weekIndex,
+      day_index: item.dayIndex,
+      slot_index: item.slotIndex,
+      scheduled_date: item.scheduledDate,
+      title: item.title,
+      status: item.status,
+      payload: item.payload,
+      rationale: item.rationale,
+    }));
     currentValidation = result.validation;
     currentAdjustments = [];
     weekIndex = 1;
@@ -267,7 +293,7 @@ $("#programForm").addEventListener("submit", async (event) => {
     $("#builderState").classList.add("ready");
     renderProgram();
     $("#programWorkspace").scrollIntoView({ behavior: "smooth", block: "start" });
-    showToast("Program built and deterministically validated ✓", true);
+    showToast("Program built and quality-gated ✓", true);
   } catch (error) {
     $("#builderState").textContent = "BUILD FAILED";
     showToast(error.message);
@@ -280,7 +306,7 @@ $("#programForm").addEventListener("submit", async (event) => {
 
 $("#activateProgram").addEventListener("click", async () => {
   if (!currentProgram?.id) return;
-  if (!currentValidation?.valid) return showToast("Program must pass validation before activation.");
+  if (activationBlocked()) return showToast("This draft has product-blocking quality warnings. Rebuild it before activation.");
   const button = $("#activateProgram");
   button.disabled = true;
   button.textContent = "ACTIVATING…";
@@ -293,7 +319,7 @@ $("#activateProgram").addEventListener("click", async () => {
     showToast(error.message);
   } finally {
     button.disabled = false;
-    button.textContent = "ACTIVATE PROGRAM";
+    if (currentProgram?.status !== "active") button.textContent = activationBlocked() ? "REBUILD REQUIRED" : "ACTIVATE PROGRAM";
   }
 });
 
