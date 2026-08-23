@@ -1,7 +1,7 @@
-const CACHE = "trainsync-v7";
+const CACHE = "trainsync-v8";
 const ASSETS = [
   "/", "/index.html", "/styles.css", "/workout-log.css", "/app.js",
-  "/program", "/program.html", "/program.css", "/program.js",
+  "/program", "/program.html", "/program.css", "/program.js", "/program-adaptation-ui.js",
   "/history", "/history.html", "/history.js",
   "/progress", "/progress.html", "/progress.js",
   "/profile", "/profile.html", "/profile.css", "/profile.js",
