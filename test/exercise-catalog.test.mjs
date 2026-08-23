@@ -37,12 +37,32 @@ test("catalog owns anatomy instead of trusting model metadata", () => {
     loadType: "external_weight",
     requiredEquipment: ["barbell"],
     progressionMode: "load_progression",
-    setMetric: "reps",
+    setMetric: "duration_seconds",
   });
   assert.deepEqual(canonical.primaryMuscles, ["chest"]);
   assert.ok(canonical.secondaryMuscles.includes("triceps"));
+  assert.ok(!canonical.secondaryMuscles.includes("abs"));
+  assert.ok(canonical.fatigueTags.includes("core_bracing"));
   assert.equal(canonical.movementPattern, "horizontal_push");
   assert.equal(canonical.loadType, "bodyweight");
   assert.deepEqual(canonical.requiredEquipment, ["bodyweight", "floor"]);
   assert.equal(canonical.progressionMode, "variant_progression");
+  assert.equal(canonical.setMetric, "reps");
+});
+
+test("stabilizer fatigue is preserved without inflating muscle dose metadata", () => {
+  const rdl = canonicalizeExerciseSelection({ exerciseKey: "kettlebell_rdl", setMetric: "duration_seconds" });
+  assert.deepEqual(rdl.primaryMuscles, ["hamstrings", "glutes"]);
+  assert.deepEqual(rdl.secondaryMuscles, ["adductors"]);
+  assert.ok(rdl.fatigueTags.includes("grip"));
+  assert.ok(rdl.fatigueTags.includes("spinal_bracing"));
+  assert.ok(rdl.fatigueTags.includes("hinge"));
+  assert.equal(rdl.setMetric, "reps");
+});
+
+test("timed versus rep metric is owned by the catalog", () => {
+  const pushup = canonicalizeExerciseSelection({ exerciseKey: "push_up", setMetric: "duration_seconds" });
+  const hollow = canonicalizeExerciseSelection({ exerciseKey: "hollow_body_hold", setMetric: "reps" });
+  assert.equal(pushup.setMetric, "reps");
+  assert.equal(hollow.setMetric, "duration_seconds");
 });
