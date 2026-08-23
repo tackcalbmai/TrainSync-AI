@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildProgramAdjustmentAudit, derivedEvidence, validateProgramAdjustmentAudit } from "../lib/adaptation-audit.mjs";
+import { buildProgramAdjustmentAudit, derivedEvidence, SCIENTIFIC_AUDIT_VERSION, validateProgramAdjustmentAudit } from "../lib/adaptation-audit.mjs";
 import { SCIENCE_VERSION } from "../lib/scientific-framework.mjs";
+import { ADAPTATION_SCIENCE_VERSION } from "../lib/adaptation-evidence.mjs";
 
 test("audit derives evidence level and claims from registered rule keys", () => {
   const row = buildProgramAdjustmentAudit({
@@ -15,10 +16,17 @@ test("audit derives evidence level and claims from registered rule keys", () => 
     decisionConfidence: 0.82,
   });
   assert.equal(row.evidence_level, "moderate");
-  assert.equal(row.science_version, SCIENCE_VERSION);
+  assert.equal(row.science_version, SCIENTIFIC_AUDIT_VERSION);
+  assert.equal(row.metrics_snapshot.scienceVersions.programming, SCIENCE_VERSION);
+  assert.equal(row.metrics_snapshot.scienceVersions.adaptation, ADAPTATION_SCIENCE_VERSION);
   assert.ok(row.evidence_claim_ids.includes("supersets_time_efficiency_tradeoff"));
   assert.deepEqual(row.evidence_rule_keys, ["competingSuperset"]);
   assert.equal(validateProgramAdjustmentAudit(row).valid, true);
+});
+
+test("programming and adaptation evidence versions are independently traceable", () => {
+  assert.match(SCIENTIFIC_AUDIT_VERSION, new RegExp(`^${SCIENCE_VERSION.replaceAll(".", "\\.")}\\+adapt:`));
+  assert.ok(SCIENTIFIC_AUDIT_VERSION.endsWith(ADAPTATION_SCIENCE_VERSION));
 });
 
 test("weakest evidence level wins when a decision mixes evidence and heuristic rules", () => {
