@@ -58,6 +58,7 @@ test("one strong exposure does not rewrite the future program", () => {
   const future = [{ id:"ps2", program_id:"p1", scheduled_date:"2026-09-02", status:"planned", revision:1, payload:{ exercises:[pushupExercise()] } }];
   const plan = buildPostSessionAdaptationPlan({ completedProgramSession:current, completedWorkoutSession:workout, setResults:resultRows("ws1", "2026-08-31T18:00:00Z"), futureProgramSessions:future });
   assert.equal(plan.proposals.length, 0);
+  assert.equal(plan.requirements.length, 0);
 });
 
 test("using less than prescribed resistance prevents false overperformance", () => {
@@ -90,4 +91,26 @@ test("known small equipment step can create a weight progression proposal", () =
   assert.equal(plan.proposals[0].decision.action, "progress_load");
   assert.equal(plan.proposals[0].newPayload.exercises[0].sets[0].weightKg, 21);
   assert.equal(plan.proposals[0].expectedRevision, 2);
+  assert.equal(plan.requirements.length, 0);
+});
+
+test("pure load progression surfaces one precise requirement when no next load is known", () => {
+  const bench = () => ({
+    exerciseKey:"barbell_bench_press", name:"Barbell Bench Press", role:"primary_strength", progressionMode:"load_progression", setMetric:"reps",
+    sets:[{ metricType:"reps", minReps:5, maxReps:6, targetRir:2, restSec:180, weightKg:50 }],
+  });
+  const current = { id:"ps2", program_id:"p1", scheduled_date:"2026-09-02", payload:{ exercises:[bench()] } };
+  const workout = { id:"ws2", program_session_id:"ps2", status:"completed" };
+  const rows = [
+    ...resultRows("ws2", "2026-09-02T18:00:00Z", "barbell_bench_press", 7, 50, 50).slice(0,1).map((row) => ({ ...row, target_min_reps:5, target_max_reps:6 })),
+    ...resultRows("ws1", "2026-08-31T18:00:00Z", "barbell_bench_press", 7, 50, 50).slice(0,1).map((row) => ({ ...row, target_min_reps:5, target_max_reps:6 })),
+  ];
+  const future = [{ id:"ps3", program_id:"p1", scheduled_date:"2026-09-04", status:"planned", revision:1, payload:{ exercises:[bench()] } }];
+  const plan = buildPostSessionAdaptationPlan({ completedProgramSession:current, completedWorkoutSession:workout, setResults:rows, futureProgramSessions:future });
+  assert.equal(plan.proposals.length, 1);
+  assert.equal(plan.proposals[0].applied, false);
+  assert.equal(plan.requirements.length, 1);
+  assert.equal(plan.requirements[0].type, "load_options");
+  assert.equal(plan.requirements[0].exerciseKey, "barbell_bench_press");
+  assert.equal(plan.requirements[0].reasonCode, "NO_HIGHER_LOAD_AVAILABLE");
 });
