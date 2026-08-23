@@ -1,12 +1,13 @@
-const CACHE = "trainsync-v10";
+const CACHE = "trainsync-v11";
 const ASSETS = [
-  "/", "/index.html", "/styles.css", "/workout-log.css", "/app.js",
+  "/", "/index.html", "/styles.css", "/workout-log.css", "/auth-ui.js", "/app.js",
+  "/reset-password", "/reset-password.html", "/reset-password.js",
   "/program", "/program.html", "/program.css", "/program-science.css", "/program.js", "/program-adaptation-ui.js", "/program-science-ui.js",
   "/history", "/history.html", "/history.js",
   "/progress", "/progress.html", "/progress.js",
   "/profile", "/profile.html", "/profile.css", "/profile.js",
   "/integrations", "/integrations.html", "/integrations.css", "/integrations.js",
-  "/insights.css", "/lib/progress.mjs", "/lib/workout.mjs", "/lib/programming-engine.mjs", "/lib/program-client.js", "/lib/program-session-workout.mjs", "/lib/train-program-bridge.js", "/lib/exercise-catalog.mjs", "/lib/supabase-client.js",
+  "/insights.css", "/lib/progress.mjs", "/lib/workout.mjs", "/lib/programming-engine.mjs", "/lib/program-client.js", "/lib/program-session-workout.mjs", "/lib/train-program-bridge.js", "/lib/exercise-catalog.mjs", "/lib/auth-redirect.mjs", "/lib/supabase-client.js",
   "/icon.svg", "/manifest.webmanifest"
 ];
 self.addEventListener("install", (event) => { self.skipWaiting(); event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(ASSETS))); });
