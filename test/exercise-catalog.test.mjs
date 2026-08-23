@@ -3,9 +3,14 @@ import assert from "node:assert/strict";
 import {
   EXERCISE_CATALOG_VERSION,
   canonicalizeExerciseSelection,
+  catalogCoverageForEquipment,
+  catalogCoverageGaps,
   exerciseKeysForEquipment,
   getExerciseDefinition,
 } from "../lib/exercise-catalog.mjs";
+
+const CORE_CAPABILITIES = ["upperPush","upperPull","kneeDominant","hinge","calves","core"];
+const MAJOR_MUSCLES = ["chest","lats","upper_back","front_delts","side_delts","rear_delts","biceps","triceps","quads","hamstrings","glutes","calves"];
 
 test("catalog resolves aliases to one stable exercise identity", () => {
   const a = getExerciseDefinition("Pike Push-Up");
@@ -25,6 +30,7 @@ test("catalog equipment filter never offers unavailable support", () => {
   assert.ok(keys.includes("kettlebell_floor_press"));
   assert.ok(!keys.includes("barbell_bench_press"));
   assert.ok(!keys.includes("bulgarian_split_squat"));
+  assert.ok(!keys.includes("dumbbell_romanian_deadlift"));
 });
 
 test("catalog owns anatomy instead of trusting model metadata", () => {
@@ -60,9 +66,44 @@ test("stabilizer fatigue is preserved without inflating muscle dose metadata", (
   assert.equal(rdl.setMetric, "reps");
 });
 
+test("overhead pressing does not falsely count upper-back hypertrophy volume", () => {
+  for (const key of ["pike_push_up","handstand_push_up_wall","kettlebell_overhead_press","barbell_overhead_press","dumbbell_overhead_press"]) {
+    const exercise = getExerciseDefinition(key);
+    assert.ok(exercise, key);
+    assert.ok(!exercise.secondaryMuscles.includes("upper_back"), `${key} should not count upper_back as fractional training dose`);
+    assert.ok(exercise.fatigueTags.includes("shoulder_girdle_stability") || key === "dumbbell_overhead_press");
+  }
+});
+
 test("timed versus rep metric is owned by the catalog", () => {
   const pushup = canonicalizeExerciseSelection({ exerciseKey: "push_up", setMetric: "duration_seconds" });
   const hollow = canonicalizeExerciseSelection({ exerciseKey: "hollow_body_hold", setMetric: "reps" });
   assert.equal(pushup.setMetric, "reps");
   assert.equal(hollow.setMetric, "duration_seconds");
+});
+
+test("dumbbells plus bench can support a balanced general strength program", () => {
+  const gaps = catalogCoverageGaps(["dumbbells","bench"], { requiredCapabilities:CORE_CAPABILITIES, requiredPrimaryMuscles:MAJOR_MUSCLES });
+  assert.deepEqual(gaps.missingCapabilities, []);
+  assert.deepEqual(gaps.missingPrimaryMuscles, []);
+  assert.ok(gaps.coverage.exerciseKeys.includes("dumbbell_romanian_deadlift"));
+  assert.ok(gaps.coverage.exerciseKeys.includes("dumbbell_overhead_press"));
+  assert.ok(gaps.coverage.exerciseKeys.includes("dumbbell_chest_supported_rear_delt_fly"));
+});
+
+test("machines plus cables can support a balanced full-body program without free weights", () => {
+  const gaps = catalogCoverageGaps(["machines","cables"], { requiredCapabilities:CORE_CAPABILITIES, requiredPrimaryMuscles:MAJOR_MUSCLES });
+  assert.deepEqual(gaps.missingCapabilities, []);
+  assert.deepEqual(gaps.missingPrimaryMuscles, []);
+  assert.ok(gaps.coverage.exerciseKeys.includes("machine_chest_press"));
+  assert.ok(gaps.coverage.exerciseKeys.includes("cable_pull_through"));
+  assert.ok(gaps.coverage.exerciseKeys.includes("machine_calf_raise"));
+});
+
+test("coverage audit reports real gaps instead of inflating exercise count", () => {
+  const coverage = catalogCoverageForEquipment([]);
+  assert.equal(typeof coverage.exerciseCount, "number");
+  const gaps = catalogCoverageGaps([], { requiredCapabilities:["upperPull"], requiredPrimaryMuscles:["lats"] });
+  assert.ok(gaps.missingCapabilities.includes("upperPull"));
+  assert.ok(gaps.missingPrimaryMuscles.includes("lats"));
 });
