@@ -82,29 +82,40 @@ test("variant changes require a registered server transition", () => {
   assert.equal(other.reasonCode, "VARIANT_TRANSITION_NOT_REGISTERED");
 });
 
-test("repeated fatigue can remove exactly one working set while preserving the prescription", () => {
+test("repeated high-effort underperformance can remove exactly one working set while preserving the prescription", () => {
   const current = exercise();
   current.sets.push({ ...current.sets[1] });
   const before = JSON.parse(JSON.stringify(current.sets.slice(0, 2)));
   const result = applyAdaptationDecision({
     exercise:current,
-    decision:{ action:"reduce_or_review", reasonCode:"REPEATED_FATIGUE_SIGNAL", ruleKeys:["reduceAfterRepeatedFatigue"] },
+    decision:{ action:"reduce_or_review", reasonCode:"REPEATED_HIGH_EFFORT_UNDERPERFORMANCE", ruleKeys:["reduceAfterRepeatedHighEffortUnderperformance"] },
   });
   assert.equal(result.applied, true);
-  assert.equal(result.reasonCode, "WORKING_SET_REMOVED_FOR_REPEATED_FATIGUE");
+  assert.equal(result.reasonCode, "WORKING_SET_REMOVED_AFTER_REPEATED_HIGH_EFFORT_UNDERPERFORMANCE");
   assert.equal(result.exercise.sets.length, 2);
   assert.deepEqual(result.exercise.sets, before);
   assert.equal(result.mutation.removedWorkingSets, 1);
   assert.equal(result.mutation.beforeWorkingSets, 3);
   assert.equal(result.mutation.afterWorkingSets, 2);
   assert.equal(result.mutation.temporary, true);
-  assert.ok(result.ruleKeys.includes("reduceAfterRepeatedFatigue"));
+  assert.ok(result.ruleKeys.includes("reduceAfterRepeatedHighEffortUnderperformance"));
 });
 
-test("fatigue reduction never pushes an exercise below two working sets", () => {
+test("legacy reduction reason remains executable for already persisted decisions", () => {
+  const current = exercise();
+  current.sets.push({ ...current.sets[1] });
+  const result = applyAdaptationDecision({
+    exercise:current,
+    decision:{ action:"reduce_or_review", reasonCode:"REPEATED_FATIGUE_SIGNAL", ruleKeys:["reduceAfterRepeatedFatigue"] },
+  });
+  assert.equal(result.applied, true);
+  assert.equal(result.reasonCode, "WORKING_SET_REMOVED_AFTER_REPEATED_HIGH_EFFORT_UNDERPERFORMANCE");
+});
+
+test("automatic volume reduction never pushes an exercise below two working sets", () => {
   const result = applyAdaptationDecision({
     exercise:exercise(),
-    decision:{ action:"reduce_or_review", reasonCode:"REPEATED_FATIGUE_SIGNAL", ruleKeys:["reduceAfterRepeatedFatigue"] },
+    decision:{ action:"reduce_or_review", reasonCode:"REPEATED_HIGH_EFFORT_UNDERPERFORMANCE", ruleKeys:["reduceAfterRepeatedHighEffortUnderperformance"] },
   });
   assert.equal(result.applied, false);
   assert.equal(result.reasonCode, "MINIMUM_WORKING_SETS_REACHED");
@@ -112,11 +123,11 @@ test("fatigue reduction never pushes an exercise below two working sets", () => 
   assert.equal(result.minimumWorkingSets, 2);
 });
 
-test("temporary fatigue reduction can restore only one set toward its recorded baseline", () => {
+test("temporary performance-triggered volume reduction can restore only one set toward its recorded baseline", () => {
   const current = exercise();
   const result = applyAdaptationDecision({
     exercise:current,
-    decision:{ action:"restore_volume", reasonCode:"RECOVERED_AFTER_VOLUME_REDUCTION", targetWorkingSets:4, ruleKeys:["reduceAfterRepeatedFatigue"] },
+    decision:{ action:"restore_volume", reasonCode:"RECOVERED_AFTER_VOLUME_REDUCTION", targetWorkingSets:4, ruleKeys:["reduceAfterRepeatedHighEffortUnderperformance"] },
   });
   assert.equal(result.applied, true);
   assert.equal(result.reasonCode, "WORKING_SET_RESTORED_AFTER_STABLE_RECOVERY");
@@ -128,7 +139,7 @@ test("temporary fatigue reduction can restore only one set toward its recorded b
 test("volume restoration stops once the recorded baseline is reached", () => {
   const result = applyAdaptationDecision({
     exercise:exercise(),
-    decision:{ action:"restore_volume", reasonCode:"RECOVERED_AFTER_VOLUME_REDUCTION", targetWorkingSets:2, ruleKeys:["reduceAfterRepeatedFatigue"] },
+    decision:{ action:"restore_volume", reasonCode:"RECOVERED_AFTER_VOLUME_REDUCTION", targetWorkingSets:2, ruleKeys:["reduceAfterRepeatedHighEffortUnderperformance"] },
   });
   assert.equal(result.applied, false);
   assert.equal(result.reasonCode, "VOLUME_ALREADY_AT_BASELINE");
@@ -137,7 +148,7 @@ test("volume restoration stops once the recorded baseline is reached", () => {
 test("generic review decisions do not mutate the next prescription", () => {
   const result = applyAdaptationDecision({
     exercise:exercise(),
-    decision:{ action:"reduce_or_review", reasonCode:"REPEATED_UNDERPERFORMANCE", ruleKeys:["reduceAfterRepeatedFatigue"] },
+    decision:{ action:"reduce_or_review", reasonCode:"REPEATED_UNDERPERFORMANCE", ruleKeys:["reduceAfterRepeatedHighEffortUnderperformance"] },
   });
   assert.equal(result.applied, false);
   assert.equal(result.reasonCode, "REVIEW_REQUIRED");
