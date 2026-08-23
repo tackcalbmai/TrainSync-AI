@@ -17,17 +17,19 @@ export default async function handler(req, res) {
     decisionConfidence: 0.8,
   });
   const adjustmentAudit = validateProgramAdjustmentAudit(sampleAdjustment);
-  const fatigueAdjustment = buildProgramAdjustmentAudit({
+  const observedPatternAdjustment = buildProgramAdjustmentAudit({
     adjustmentType: "reduce_or_review",
-    reasonCode: "REPEATED_FATIGUE_SIGNAL",
-    reasonText: "Verify fatigue-volume adaptation remains evidence-informed without overstating the exact threshold.",
-    ruleKeys: ["reduceAfterRepeatedFatigue"],
+    reasonCode: "REPEATED_HIGH_EFFORT_UNDERPERFORMANCE",
+    reasonText: "Verify performance-triggered volume adaptation remains evidence-informed without diagnosing the cause of the observed pattern.",
+    ruleKeys: ["reduceAfterRepeatedHighEffortUnderperformance"],
     decisionConfidence: 0.78,
+    metricsSnapshot: { recentPerformance:[{ state:"high_effort_underperformance" }] },
   });
-  const fatigueAudit = validateProgramAdjustmentAudit(fatigueAdjustment);
-  const fatigueAuditReady = fatigueAudit.valid
-    && fatigueAdjustment.evidence_level === "heuristic"
-    && fatigueAdjustment.evidence_claim_ids.includes("volume_is_a_plausible_fatigue_management_lever");
+  const observedPatternAudit = validateProgramAdjustmentAudit(observedPatternAdjustment);
+  const observedPatternAuditReady = observedPatternAudit.valid
+    && observedPatternAdjustment.evidence_level === "heuristic"
+    && observedPatternAdjustment.evidence_claim_ids.includes("volume_is_a_plausible_fatigue_management_lever")
+    && observedPatternAdjustment.metrics_snapshot?.recentPerformance?.[0]?.state === "high_effort_underperformance";
   const adaptationDecision = decideExerciseAdaptation({
     progressionMode: "reps_only",
     recentPerformances: [
@@ -55,7 +57,7 @@ export default async function handler(req, res) {
     decisionConfidence: adaptationDecision.confidence,
   })) : { valid: false, errors: [sampleMutation.reasonCode || "MUTATION_FAILED"] };
   const prescriptionMutationReady = sampleMutation.applied && sampleMutation.exercise?.sets?.[0]?.minReps === 9 && mutationAudit.valid;
-  const ok = framework.valid && adaptationEvidence.valid && adjustmentAudit.valid && fatigueAuditReady && adaptationPolicyReady && prescriptionMutationReady;
+  const ok = framework.valid && adaptationEvidence.valid && adjustmentAudit.valid && observedPatternAuditReady && adaptationPolicyReady && prescriptionMutationReady;
   const payload = {
     ok,
     scienceVersion: framework.scienceVersion,
@@ -68,14 +70,14 @@ export default async function handler(req, res) {
     adaptationClaimCount: adaptationEvidence.claimCount,
     adaptationRuleBindingCount: adaptationEvidence.ruleBindingCount,
     adjustmentAuditReady: adjustmentAudit.valid,
-    fatigueAuditReady,
+    observedPatternAuditReady,
     adaptationPolicyReady,
     prescriptionMutationReady,
   };
   if (!ok) return res.status(500).json({
     ...payload,
     error: "SCIENTIFIC_FRAMEWORK_INVALID",
-    issues: [...framework.errors, ...adaptationEvidence.errors, ...adjustmentAudit.errors, ...fatigueAudit.errors, ...adaptationAudit.errors, ...mutationAudit.errors],
+    issues: [...framework.errors, ...adaptationEvidence.errors, ...adjustmentAudit.errors, ...observedPatternAudit.errors, ...adaptationAudit.errors, ...mutationAudit.errors],
   });
   return res.status(200).json(payload);
 }
