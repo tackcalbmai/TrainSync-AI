@@ -23,7 +23,8 @@ test("exact canonical mapped workout is Garmin projection ready and binary encod
   const input = workout("push_up", exactReps);
   const readiness = garminFitProjectionReadiness(input);
   assert.equal(readiness.ready, true);
-  assert.equal(readiness.reasonCode, "FIT_PROJECTION_READY");
+  assert.equal(readiness.publishReady, true);
+  assert.equal(readiness.reasonCode, "GARMIN_EXACT_TARGET_READY");
   assert.deepEqual(readiness.checks, { exactTargetsReady:true, canonicalReady:true, mappedReady:true });
   assert.doesNotThrow(() => encodeGarminFitWorkout(input, { timeCreated:"2026-08-23T18:00:00Z" }));
 });
@@ -49,13 +50,17 @@ test("canonical but unmapped workout is not Garmin ready and encoder agrees", ()
 });
 
 test("rep range is not Garmin ready and encoder agrees", () => {
-  const input = workout("push_up", { metricType:"reps", minReps:8, maxReps:10, targetReps:null, restSec:90 });
+  const input = workout("push_up", { metricType:"reps", minReps:8, maxReps:10, targetReps:null, targetRir:2, restSec:90 });
   const readiness = garminFitProjectionReadiness(input);
   assert.equal(readiness.ready, false);
-  assert.equal(readiness.reasonCode, "TARGET_RANGE_PROVIDER_POLICY_REQUIRED");
+  assert.equal(readiness.publishReady, false);
+  assert.equal(readiness.reasonCode, "GARMIN_RANGE_DEVICE_VERIFICATION_REQUIRED");
+  assert.equal(readiness.rangePreviewAvailable, true);
+  assert.equal(readiness.deviceVerificationRequired, true);
   assert.equal(readiness.checks.exactTargetsReady, false);
   assert.throws(() => encodeGarminFitWorkout(input), (error) => {
-    assert.equal(error.code, "FIT_TARGET_RANGE_POLICY_REQUIRED");
+    assert.equal(error.code, "GARMIN_RANGE_DEVICE_VERIFICATION_REQUIRED");
+    assert.equal(error.details.targetPolicy.deviceVerificationRequired, true);
     return true;
   });
 });
