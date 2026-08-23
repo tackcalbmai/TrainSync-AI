@@ -29,6 +29,21 @@ function pushupExercise() {
     exerciseKey:"push_up",
     name:"Push-Up",
     role:"hypertrophy_compound",
+    progressionMode:"variant_progression",
+    setMetric:"reps",
+    sets:[
+      { metricType:"reps", minReps:8, maxReps:10, targetRir:2, restSec:90, weightKg:null },
+      { metricType:"reps", minReps:8, maxReps:10, targetRir:2, restSec:90, weightKg:null },
+      { metricType:"reps", minReps:8, maxReps:10, targetRir:2, restSec:90, weightKg:null },
+    ],
+  };
+}
+
+function pullupExercise() {
+  return {
+    exerciseKey:"pull_up",
+    name:"Pull-Up",
+    role:"hypertrophy_compound",
     progressionMode:"reps_only",
     setMetric:"reps",
     sets:[
@@ -40,13 +55,13 @@ function pushupExercise() {
 }
 
 test("two controlled exposures can produce a next-session reps proposal", () => {
-  const current = { id:"ps2", program_id:"p1", scheduled_date:"2026-09-02", payload:{ exercises:[pushupExercise()] } };
+  const current = { id:"ps2", program_id:"p1", scheduled_date:"2026-09-02", payload:{ exercises:[pullupExercise()] } };
   const workout = { id:"ws2", program_session_id:"ps2", status:"completed" };
   const history = [
-    ...resultRows("ws2", "2026-09-02T18:00:00Z"),
-    ...resultRows("ws1", "2026-08-31T18:00:00Z"),
+    ...resultRows("ws2", "2026-09-02T18:00:00Z", "pull_up"),
+    ...resultRows("ws1", "2026-08-31T18:00:00Z", "pull_up"),
   ];
-  const future = [{ id:"ps3", program_id:"p1", scheduled_date:"2026-09-04", status:"planned", revision:1, payload:{ exercises:[pushupExercise()] } }];
+  const future = [{ id:"ps3", program_id:"p1", scheduled_date:"2026-09-04", status:"planned", revision:1, payload:{ exercises:[pullupExercise()] } }];
   const plan = buildPostSessionAdaptationPlan({ completedProgramSession:current, completedWorkoutSession:workout, setResults:history, futureProgramSessions:future });
   assert.equal(plan.valid, true);
   assert.equal(plan.proposals.length, 1);
