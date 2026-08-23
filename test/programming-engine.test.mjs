@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { canonicalizeExerciseSelection } from "../lib/exercise-catalog.mjs";
 import { classifyExercisePerformance, estimateSessionMinutes, fractionalMuscleVolume, validateProgram, validateProgramSession } from "../lib/programming-engine.mjs";
 
 const bench = (sets = 4) => ({
@@ -7,10 +8,21 @@ const bench = (sets = 4) => ({
   primaryMuscles: ["chest"], secondaryMuscles: ["triceps", "front delts"],
   sets: Array.from({ length: sets }, () => ({ metricType: "reps", minReps: 4, maxReps: 6, targetRir: 2, restSec: 180 })),
 });
+const repSets = (count, minReps = 8, maxReps = 12, restSec = 120) => Array.from({ length: count }, () => ({ metricType: "reps", minReps, maxReps, targetRir: 2, restSec }));
 
 test("fractional muscle sets distinguish direct and indirect work", () => {
   const dose = fractionalMuscleVolume([bench(4)]);
   assert.equal(dose.direct.chest, 4); assert.equal(dose.indirect.triceps, 4); assert.equal(dose.fractional.triceps, 2); assert.equal(dose.fractional.front_delts, 2);
+});
+
+test("catalog stabilizer tags do not inflate muscle dose", () => {
+  const pushup = canonicalizeExerciseSelection({ exerciseKey: "push_up", sets: repSets(4) });
+  const dose = fractionalMuscleVolume([pushup]);
+  assert.equal(dose.direct.chest, 4);
+  assert.equal(dose.fractional.triceps, 2);
+  assert.equal(dose.fractional.front_delts, 2);
+  assert.equal(dose.fractional.abs, undefined);
+  assert.ok(pushup.fatigueTags.includes("core_bracing"));
 });
 
 test("session validator warns on concentrated volume without inventing a hard cap", () => {
@@ -19,18 +31,30 @@ test("session validator warns on concentrated volume without inventing a hard ca
 });
 
 test("non-competing supersets reduce estimated session time", () => {
-  const press = { name: "Dumbbell Press", role: "hypertrophy_compound", movementPattern: "horizontal_push", loadType: "external_weight", progressionMode: "double_progression", primaryMuscles: ["chest"], secondaryMuscles: ["triceps"], sets: Array.from({ length: 3 }, () => ({ metricType: "reps", minReps: 8, maxReps: 10, targetRir: 2, restSec: 120 })) };
-  const row = { name: "Cable Row", role: "hypertrophy_compound", movementPattern: "horizontal_pull", loadType: "external_weight", progressionMode: "double_progression", primaryMuscles: ["upper_back"], secondaryMuscles: ["biceps"], sets: Array.from({ length: 3 }, () => ({ metricType: "reps", minReps: 8, maxReps: 10, targetRir: 2, restSec: 120 })) };
+  const press = { name: "Dumbbell Press", role: "hypertrophy_compound", movementPattern: "horizontal_push", loadType: "external_weight", progressionMode: "double_progression", primaryMuscles: ["chest"], secondaryMuscles: ["triceps"], sets: repSets(3, 8, 10, 120) };
+  const row = { name: "Cable Row", role: "hypertrophy_compound", movementPattern: "horizontal_pull", loadType: "external_weight", progressionMode: "double_progression", primaryMuscles: ["upper_back"], secondaryMuscles: ["biceps"], sets: repSets(3, 8, 10, 120) };
   assert.ok(estimateSessionMinutes({ exercises: [{ ...press, supersetGroup: "A" }, { ...row, supersetGroup: "A" }] }) < estimateSessionMinutes({ exercises: [press, row] }));
 });
 
-test("validator catches direct and shared-limiter superset competition", () => {
+test("validator catches direct and legacy shared-limiter superset competition", () => {
   const first = { ...bench(3), role: "hypertrophy_compound", supersetGroup: "A" };
   const second = { ...bench(3), name: "Incline Dumbbell Press", role: "hypertrophy_compound", supersetGroup: "A" };
   assert.ok(validateProgramSession({ title: "Competing pair", exercises: [first, second] }).warnings.some((item) => item.code === "COMPETING_SUPERSET"));
-  const rdl = { name: "Kettlebell Romanian Deadlift", role: "hypertrophy_compound", movementPattern: "hinge", loadType: "external_weight", progressionMode: "double_progression", supersetGroup: "C", primaryMuscles: ["hamstrings"], secondaryMuscles: ["glutes", "spinal_erectors", "forearms"], sets: Array.from({ length: 3 }, () => ({ metricType: "reps", minReps: 8, maxReps: 12, targetRir: 2, restSec: 90 })) };
-  const fly = { name: "Bent-Over Kettlebell Reverse Fly", role: "isolation", movementPattern: "horizontal_pull", loadType: "external_weight", progressionMode: "double_progression", supersetGroup: "C", primaryMuscles: ["rear_delts"], secondaryMuscles: ["upper_back", "forearms"], sets: Array.from({ length: 2 }, () => ({ metricType: "reps", minReps: 12, maxReps: 20, targetRir: 2, restSec: 60 })) };
+  const rdl = { name: "Kettlebell Romanian Deadlift", role: "hypertrophy_compound", movementPattern: "hinge", loadType: "external_weight", progressionMode: "double_progression", supersetGroup: "C", primaryMuscles: ["hamstrings"], secondaryMuscles: ["glutes", "spinal_erectors", "forearms"], sets: repSets(3, 8, 12, 90) };
+  const fly = { name: "Bent-Over Kettlebell Reverse Fly", role: "isolation", movementPattern: "horizontal_pull", loadType: "external_weight", progressionMode: "double_progression", supersetGroup: "C", primaryMuscles: ["rear_delts"], secondaryMuscles: ["upper_back", "forearms"], sets: repSets(2, 12, 20, 60) };
   assert.ok(validateProgramSession({ title: "Bad hinge pair", exercises: [rdl, fly] }).warnings.some((item) => item.code === "SHARED_LIMITER_SUPERSET"));
+});
+
+test("validator uses catalog fatigue tags without counting stabilizers as volume", () => {
+  const rdl = canonicalizeExerciseSelection({ exerciseKey: "kettlebell_rdl", role: "hypertrophy_compound", supersetGroup: "C", sets: repSets(3, 8, 12, 90) });
+  const row = canonicalizeExerciseSelection({ exerciseKey: "kettlebell_one_arm_row", role: "hypertrophy_compound", supersetGroup: "C", sets: repSets(3, 8, 12, 90) });
+  assert.deepEqual(rdl.secondaryMuscles, ["adductors"]);
+  assert.ok(!row.secondaryMuscles.includes("forearms"));
+  const result = validateProgramSession({ title: "Unsupported hinge and row", exercises: [rdl, row] });
+  const warning = result.warnings.find((item) => item.code === "SHARED_LIMITER_SUPERSET");
+  assert.ok(warning);
+  assert.ok(warning.context.fatigueTags.includes("grip"));
+  assert.ok(warning.context.fatigueTags.includes("spinal_bracing"));
 });
 
 test("validator warns when primary strength uses a high rep ceiling", () => {
