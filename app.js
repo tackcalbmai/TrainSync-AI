@@ -282,10 +282,11 @@ async function openLogSession() {
         <span><strong>${escapeHtml(target)}</strong><br>PLAN</span>
         <input class="log-actual" type="number" min="1" max="${timed ? 3600 : 500}" step="1" value="${escapeHtml(defaultActual(set))}" aria-label="${actualLabel} for ${escapeHtml(exercise.name)} set ${setIndex + 1}">
         <input class="log-weight" type="number" min="0" step="0.5" value="${escapeHtml(inputLoadFromKg(set.weightKg))}" placeholder="${unit}" aria-label="Actual load in ${unit}">
+        <input class="log-rir" type="number" min="0" max="6" step="0.5" placeholder="RIR" aria-label="Actual RIR for set ${setIndex + 1}">
         <input class="log-rpe" type="number" min="1" max="10" step="0.5" placeholder="RPE" aria-label="RPE for set ${setIndex + 1}">
       </div>`;
     }).join("");
-    return `<section class="log-exercise"><div class="log-exercise-head"><strong>${escapeHtml(exercise.name)}</strong><span>${escapeHtml(exercise.group || exercise.role || "strength")}</span></div><div class="log-set-header"><span>SET</span><span>PLANNED</span><span>${timed ? "ACTUAL SEC" : "ACTUAL REPS"}</span><span>LOAD · ${unit}</span><span>RPE</span></div>${rows}</section>`;
+    return `<section class="log-exercise"><div class="log-exercise-head"><strong>${escapeHtml(exercise.name)}</strong><span>${escapeHtml(exercise.group || exercise.role || "strength")}</span></div><div class="log-set-header"><span>SET</span><span>PLANNED</span><span>${timed ? "ACTUAL SEC" : "ACTUAL REPS"}</span><span>LOAD · ${unit}</span><span>RIR</span><span>RPE</span></div>${rows}</section>`;
   }).join("");
 
   $("#logModal").hidden = false;
@@ -313,6 +314,7 @@ function completedSetFromRow(row) {
     reps:type === "reps" ? actual : null,
     durationSeconds:type === "duration_seconds" ? actual : null,
     weightKg:inputLoadToKg(row.querySelector(".log-weight")?.value),
+    rir:row.querySelector(".log-rir")?.value || null,
     rpe:row.querySelector(".log-rpe")?.value || null,
     isWarmup:false,
   };
