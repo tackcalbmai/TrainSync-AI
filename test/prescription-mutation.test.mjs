@@ -112,6 +112,28 @@ test("fatigue reduction never pushes an exercise below two working sets", () => 
   assert.equal(result.minimumWorkingSets, 2);
 });
 
+test("temporary fatigue reduction can restore only one set toward its recorded baseline", () => {
+  const current = exercise();
+  const result = applyAdaptationDecision({
+    exercise:current,
+    decision:{ action:"restore_volume", reasonCode:"RECOVERED_AFTER_VOLUME_REDUCTION", targetWorkingSets:4, ruleKeys:["reduceAfterRepeatedFatigue"] },
+  });
+  assert.equal(result.applied, true);
+  assert.equal(result.reasonCode, "WORKING_SET_RESTORED_AFTER_STABLE_RECOVERY");
+  assert.equal(result.exercise.sets.length, 3);
+  assert.equal(result.mutation.restoredWorkingSets, 1);
+  assert.equal(result.mutation.targetWorkingSets, 4);
+});
+
+test("volume restoration stops once the recorded baseline is reached", () => {
+  const result = applyAdaptationDecision({
+    exercise:exercise(),
+    decision:{ action:"restore_volume", reasonCode:"RECOVERED_AFTER_VOLUME_REDUCTION", targetWorkingSets:2, ruleKeys:["reduceAfterRepeatedFatigue"] },
+  });
+  assert.equal(result.applied, false);
+  assert.equal(result.reasonCode, "VOLUME_ALREADY_AT_BASELINE");
+});
+
 test("generic review decisions do not mutate the next prescription", () => {
   const result = applyAdaptationDecision({
     exercise:exercise(),
