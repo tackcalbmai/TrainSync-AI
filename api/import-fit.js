@@ -115,6 +115,7 @@ export default async function handler(req, res) {
         target_min_duration_seconds: timed ? target.targetMinDurationSeconds : null,
         target_max_duration_seconds: timed ? target.targetMaxDurationSeconds : null,
         target_weight_kg: target.targetWeightKg,
+        target_rir: target.targetRir,
         reps: timed ? null : set.reps,
         duration_seconds: timed ? set.durationSeconds : null,
         weight_kg: set.weightKg, rpe: null, is_warmup: Boolean(set.isWarmup), completed_at: set.completedAt || activity.completedAt || new Date().toISOString(),
