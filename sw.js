@@ -1,13 +1,13 @@
-const CACHE = "trainsync-v15";
+const CACHE = "trainsync-v16";
 const ASSETS = [
   "/", "/index.html", "/styles.css", "/workout-log.css", "/garmin-readiness-ui.css", "/auth-ui.js", "/app.js", "/garmin-readiness-ui.js",
   "/reset-password", "/reset-password.html", "/reset-password.js",
-  "/program", "/program.html", "/program.css", "/program-science.css", "/program.js", "/program-adaptation-ui.js", "/program-science-ui.js",
+  "/program", "/program.html", "/program.css", "/program-science.css", "/program-adjustment-explain.css", "/program.js", "/program-adaptation-ui.js", "/program-adjustment-explain-ui.js", "/program-science-ui.js",
   "/history", "/history.html", "/history.js",
   "/progress", "/progress.html", "/progress.js",
   "/profile", "/profile.html", "/profile.css", "/account-security.css", "/profile.js", "/account-security.js",
   "/integrations", "/integrations.html", "/integrations.css", "/integrations.js",
-  "/insights.css", "/lib/progress.mjs", "/lib/workout.mjs", "/lib/programming-engine.mjs", "/lib/program-client.js", "/lib/program-session-workout.mjs", "/lib/train-program-bridge.js", "/lib/exercise-catalog.mjs", "/lib/auth-redirect.mjs", "/lib/password-policy.mjs", "/lib/garmin-exercise-map.mjs", "/lib/garmin-target-policy.mjs", "/lib/garmin-workout-projection.mjs", "/lib/garmin-readiness-ui.mjs", "/lib/supabase-client.js",
+  "/insights.css", "/lib/progress.mjs", "/lib/workout.mjs", "/lib/programming-engine.mjs", "/lib/program-client.js", "/lib/program-session-workout.mjs", "/lib/train-program-bridge.js", "/lib/exercise-catalog.mjs", "/lib/auth-redirect.mjs", "/lib/password-policy.mjs", "/lib/adaptation-explanation.mjs", "/lib/garmin-exercise-map.mjs", "/lib/garmin-target-policy.mjs", "/lib/garmin-workout-projection.mjs", "/lib/garmin-readiness-ui.mjs", "/lib/supabase-client.js",
   "/icon.svg", "/manifest.webmanifest"
 ];
 self.addEventListener("install", (event) => { self.skipWaiting(); event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(ASSETS))); });

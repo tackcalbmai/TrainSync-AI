@@ -1,3 +1,4 @@
+import "./program-adjustment-explain-ui.js";
 import { currentUser } from "./lib/supabase-client.js";
 import { listProgramAdjustments, listPrograms } from "./lib/program-client.js";
 import { CLAIMS, SOURCES } from "./lib/scientific-framework.mjs";
