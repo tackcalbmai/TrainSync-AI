@@ -1,6 +1,7 @@
 import { parseGarminFitActivity } from "../lib/garmin-fit.mjs";
 import { matchGarminActivityToWorkout, targetForGarminSet } from "../lib/garmin-activity-ingestion.mjs";
 import { normalizeExerciseKey } from "../lib/progress.mjs";
+import { runProgramAdaptation } from "../lib/adaptation-service.mjs";
 
 const SUPABASE_URL = "https://sjihbrpbhfttuyzmbfku.supabase.co";
 const SUPABASE_KEY = "sb_publishable_bdSY8_XqGMnc5BylaWLROw_8ObfQkwI";
@@ -22,7 +23,7 @@ async function activeProgramSessions(token, userId) {
   const programId = programs?.[0]?.id;
   if (!programId) return [];
   const timezone = await athleteTimezone(token, userId).catch(() => "UTC");
-  const q = new URLSearchParams({ select:"id,program_id,title,status,scheduled_date,workout_id,payload,rationale,created_at,updated_at", user_id:`eq.${userId}`, program_id:`eq.${programId}`, status:"in.(planned,generated)", order:"scheduled_date.asc", limit:"40" });
+  const q = new URLSearchParams({ select:"id,program_id,title,status,scheduled_date,workout_id,payload,rationale,revision,created_at,updated_at", user_id:`eq.${userId}`, program_id:`eq.${programId}`, status:"in.(planned,generated)", order:"scheduled_date.asc", limit:"40" });
   const rows = await rest(token, `program_sessions?${q}`);
   return (Array.isArray(rows) ? rows : []).map((row) => ({ ...row, timezone, sport:"strength", matchSource:"program_session" }));
 }
@@ -34,7 +35,19 @@ async function cleanupSession(token, sessionId) { if (!sessionId) return; try { 
 async function markWorkoutCompleted(token, workout) { if (!workout?.id) return; const payload = { ...(workout.payload || {}), status: "completed" }; await rest(token, `workouts?id=eq.${encodeURIComponent(workout.id)}`, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ status: "completed", payload, updated_at: new Date().toISOString() }) }); }
 async function markProgramSessionCompleted(token, programSession) { if (!programSession?.id) return; const rationale = { ...(programSession.rationale || {}), completionSource:"garmin", completedAt:new Date().toISOString() }; await rest(token, `program_sessions?id=eq.${encodeURIComponent(programSession.id)}`, { method:"PATCH", headers:{ Prefer:"return=minimal" }, body:JSON.stringify({ status:"completed", rationale, updated_at:new Date().toISOString() }) }); }
 function providerState() { return { provider: "garmin", automaticSync: false, officialAccess: "waiting_for_garmin_access", ingestion: "ready", manualFitTest: true }; }
-function duplicateResponse(res, activity, importRow) { return res.status(200).json({ imported: true, duplicate: true, providerActivityId: activity.providerActivityId, workoutSessionId: importRow.workout_session_id, match: importRow.metadata?.match || null, matchedProgramSessionId: importRow.metadata?.matchedProgramSessionId || null, activity }); }
+function duplicateResponse(res, activity, importRow) { return res.status(200).json({ imported: true, duplicate: true, providerActivityId: activity.providerActivityId, workoutSessionId: importRow.workout_session_id, match: importRow.metadata?.match || null, matchedProgramSessionId: importRow.metadata?.matchedProgramSessionId || null, adaptation: importRow.metadata?.adaptation || null, activity }); }
+function adaptationSummary(result) {
+  if (!result) return null;
+  return {
+    status: result.status || "unknown",
+    reasonCode: result.reasonCode || null,
+    proposalCount: Array.isArray(result.plan?.proposals) ? result.plan.proposals.length : 0,
+    appliedProposalCount: Array.isArray(result.plan?.proposals) ? result.plan.proposals.filter((item) => item?.applied).length : 0,
+    bundleCount: Number(result.bundleCount || result.bundles?.length || 0),
+    appliedBundleCount: Array.isArray(result.appliedBundles) ? result.appliedBundles.length : 0,
+    conflictCount: Array.isArray(result.conflicts) ? result.conflicts.length : 0,
+  };
+}
 
 export default async function handler(req, res) {
   if (!["GET", "POST"].includes(req.method)) return res.status(405).json({ error: "METHOD_NOT_ALLOWED" });
@@ -112,9 +125,19 @@ export default async function handler(req, res) {
     let workoutStatusUpdated = false, programSessionStatusUpdated = false;
     if (linkedWorkoutId) { try { await markWorkoutCompleted(token, { ...(matchedWorkout || {}), id:linkedWorkoutId, payload:matchedWorkout?.payload || matchedProgramSession?.payload || {} }); workoutStatusUpdated = true; } catch {} }
     if (matchedProgramSession) { try { await markProgramSessionCompleted(token, matchedProgramSession); programSessionStatusUpdated = true; } catch {} }
-    const metadata = { summary: activity.summary, title: activity.title, setCount: setRows.length, timedSetCount: setRows.filter((row) => row.metric_type === "duration_seconds").length, match, matchedProgramSessionId:matchedProgramSession?.id || null, matchedWorkoutId:linkedWorkoutId, workoutStatusUpdated, programSessionStatusUpdated };
+
+    let adaptationResult = null;
+    if (matchedProgramSession && programSessionStatusUpdated) {
+      try {
+        adaptationResult = await runProgramAdaptation({ token, userId:user.id, workoutSessionId:session.id, apply:true });
+      } catch (error) {
+        adaptationResult = { status:"error", reasonCode:"ADAPTATION_POST_IMPORT_FAILED", message:error.message || "Adaptation failed after successful activity import." };
+      }
+    }
+    const adaptation = adaptationSummary(adaptationResult);
+    const metadata = { summary: activity.summary, title: activity.title, setCount: setRows.length, timedSetCount: setRows.filter((row) => row.metric_type === "duration_seconds").length, match, matchedProgramSessionId:matchedProgramSession?.id || null, matchedWorkoutId:linkedWorkoutId, workoutStatusUpdated, programSessionStatusUpdated, adaptation };
     await patchImport(token, importRow.id, { status: "imported", workout_session_id: session.id, error_code: null, metadata });
-    return res.status(200).json({ imported: true, duplicate: false, providerActivityId, workoutSessionId: session.id, matchedProgramSessionId: matchedProgramSession?.id || null, matchedWorkoutId: linkedWorkoutId, workoutStatusUpdated, programSessionStatusUpdated, match, activity });
+    return res.status(200).json({ imported: true, duplicate: false, providerActivityId, workoutSessionId: session.id, matchedProgramSessionId: matchedProgramSession?.id || null, matchedWorkoutId: linkedWorkoutId, workoutStatusUpdated, programSessionStatusUpdated, adaptation, match, activity });
   } catch (error) {
     await cleanupSession(token, session?.id);
     if (importRow?.id) await patchImport(token, importRow.id, { status: "failed", error_code: "IMPORT_FAILED", metadata: { message: error.message, summary: activity.summary, match } }).catch(() => {});
