@@ -71,7 +71,13 @@
           <div class="exercise-list" id="exerciseList"></div>
 
           <div class="publish-row">
-            <div class="validation-state" id="validationState"><span>✓</span> WORKOUT VALID</div>
+            <div class="validation-stack">
+              <div class="validation-state" id="validationState"><span>✓</span> WORKOUT VALID</div>
+              <div class="garmin-readiness" id="garminReadiness" data-state="checking">
+                <span class="garmin-readiness-dot"></span>
+                <span id="garminReadinessLabel">CHECKING GARMIN TARGETS…</span>
+              </div>
+            </div>
             <div class="workout-actions">
               <button class="log-button" id="logSessionButton" type="button">LOG SESSION</button>
               <button class="publish-button mock" id="publishButton"><span class="garmin-g">G</span><span>SEND TO GARMIN</span></button>
@@ -147,7 +153,7 @@
         </div>
         <div id="logExerciseList"></div>
         <label class="log-notes">Session notes<textarea id="logNotes" placeholder="Optional: how it felt, anything worth remembering…"></textarea></label>
-        <div class="log-hint">Loads are stored canonically in kilograms. The input follows your Athlete Profile unit preference.</div>
+        <div class="log-hint"><strong>Effort:</strong> RIR and RPE are optional. If both are reported, actual RIR takes priority for adaptation; RPE is the fallback when RIR is not reported. Loads are stored canonically in kilograms and the input follows your Athlete Profile unit preference.</div>
         <div class="log-actions">
           <button class="log-cancel" id="logCancel" type="button">CANCEL</button>
           <button class="log-save" id="logSave" type="submit">SAVE COMPLETED SESSION ↗</button>
