@@ -67,14 +67,68 @@ function renderImports(imports = []) {
   }).join("");
 }
 
+function setStrongState(selector, text, ready = false) {
+  const element = $(selector);
+  if (!element) return;
+  element.textContent = text;
+  element.classList.toggle("ready", Boolean(ready));
+}
+
+function trainingLabel(training = {}) {
+  if (training.mode === "mock") return "MOCK ONLY";
+  if (training.mode !== "official") return "NOT CONNECTED";
+  if (training.connected && training.authorizationValid) return "CONNECTED";
+  if (training.transportConfigured && !training.authorizationValid) return "NEEDS AUTH";
+  return "NOT CONNECTED";
+}
+
+function renderProviderSummary(activity = {}, training = {}) {
+  const trainingConnected = training.mode === "official" && training.connected && training.authorizationValid;
+  const activityConnected = Boolean(activity.automaticSync);
+  const anyOfficial = trainingConnected || activityConnected;
+  const bothOfficial = trainingConnected && activityConnected;
+  const pill = $("#providerState");
+
+  if (bothOfficial) {
+    pill.textContent = "GARMIN CONNECTED";
+    pill.className = "state-pill";
+  } else if (anyOfficial) {
+    pill.textContent = "PARTIAL OFFICIAL CONNECTION";
+    pill.className = "state-pill waiting";
+  } else {
+    pill.textContent = "WAITING FOR GARMIN ACCESS";
+    pill.className = "state-pill waiting";
+  }
+
+  setStrongState("#trainingApiState", trainingLabel(training), trainingConnected);
+  setStrongState("#activityApiState", activityConnected ? "CONNECTED" : "NOT CONNECTED", activityConnected);
+  setStrongState("#fitProjectionState", "READY", true);
+  setStrongState("#autoSyncState", activityConnected ? "ACTIVE" : "LOCKED", activityConnected);
+
+  const note = $("#providerNote");
+  if (training.mode === "mock") {
+    note.textContent = "Training publishing is running through the explicit mock provider: no Garmin account is modified. Activity API automatic delivery is also not connected. TrainSync never uses unofficial Garmin login APIs.";
+  } else if (trainingConnected && activityConnected) {
+    note.textContent = "Official Garmin Training and Activity providers are connected for this account. FIT projection and ingestion remain the deterministic boundaries around external Garmin data.";
+  } else if (training.mode === "official" && training.transportConfigured) {
+    note.textContent = "The official Training API transport is configured, but this user is not fully authorized yet. TrainSync will not fall back to mock or claim a publish succeeded.";
+  } else {
+    note.textContent = "Official Garmin cloud access is not connected yet. FIT projection and FIT activity ingestion are ready, and TrainSync will not use unofficial Garmin login APIs.";
+  }
+}
+
 async function loadProviderState() {
   try {
-    const state = await request("/api/import-fit", { method: "GET" });
-    $("#providerState").textContent = state.officialAccess === "waiting_for_garmin_access" ? "WAITING FOR GARMIN ACCESS" : String(state.officialAccess || "NOT CONNECTED").toUpperCase();
-    $("#activityApiState").textContent = state.automaticSync ? "CONNECTED" : "NOT CONNECTED";
-    $("#autoSyncState").textContent = state.automaticSync ? "ACTIVE" : "LOCKED";
-    renderImports(state.imports);
+    const [activity, training] = await Promise.all([
+      request("/api/import-fit", { method:"GET" }),
+      request("/api/publish", { method:"GET" }),
+    ]);
+    renderProviderSummary(activity, training);
+    renderImports(activity.imports);
   } catch (error) {
+    setStrongState("#trainingApiState", "STATUS ERROR", false);
+    setStrongState("#activityApiState", "STATUS ERROR", false);
+    setStrongState("#autoSyncState", "UNKNOWN", false);
     showToast(error.message);
   }
 }
@@ -115,9 +169,9 @@ async function importFit() {
   try {
     const fitBase64 = await fileToDataUrl(selectedFile);
     const result = await request("/api/import-fit", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fitBase64 }),
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body:JSON.stringify({ fitBase64 }),
     });
     const match = result.match;
     let message = result.duplicate ? "This Garmin activity was already imported." : `Imported ${result.activity?.summary?.totalSets || 0} working sets.`;
