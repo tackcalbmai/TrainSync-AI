@@ -1,3 +1,4 @@
+import { validateNewPassword } from "./lib/password-policy.mjs";
 import { consumeAuthRedirect, requestPasswordReset } from "./lib/supabase-client.js";
 
 const RECOVERY_FLAG = "trainsync:password-recovery";
@@ -50,6 +51,13 @@ function setRecoveryMode() {
   document.querySelector("#authEmail")?.focus();
 }
 
+function syncPasswordAutocomplete() {
+  const modal = document.querySelector("#authModal");
+  const password = document.querySelector("#authPassword");
+  if (!modal || !password || modal.dataset.mode === "recovery") return;
+  password.autocomplete = modal.dataset.mode === "signup" ? "new-password" : "current-password";
+}
+
 function installRecoveryUi() {
   const form = document.querySelector("#authForm");
   const switchButton = document.querySelector("#authSwitch");
@@ -71,10 +79,21 @@ function installRecoveryUi() {
     if (event.target?.id === "authModal") restoreAuthForm();
   });
   switchButton.addEventListener("click", restoreAuthForm, { capture:true });
+  switchButton.addEventListener("click", () => queueMicrotask(syncPasswordAutocomplete));
 
   form.addEventListener("submit", async (event) => {
     const modal = document.querySelector("#authModal");
-    if (modal?.dataset.mode !== "recovery") return;
+    const mode = modal?.dataset.mode || "signin";
+    if (mode === "signup") {
+      const verdict = validateNewPassword(document.querySelector("#authPassword")?.value || "");
+      if (!verdict.valid) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        toast(verdict.message);
+      }
+      return;
+    }
+    if (mode !== "recovery") return;
     event.preventDefault();
     event.stopImmediatePropagation();
     const email = String(document.querySelector("#authEmail")?.value || "").trim();
