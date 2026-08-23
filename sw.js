@@ -1,4 +1,4 @@
-const CACHE = "trainsync-v6";
+const CACHE = "trainsync-v7";
 const ASSETS = [
   "/", "/index.html", "/styles.css", "/workout-log.css", "/app.js",
   "/program", "/program.html", "/program.css", "/program.js",
