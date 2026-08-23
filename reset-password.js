@@ -1,3 +1,4 @@
+import { validateNewPassword } from "./lib/password-policy.mjs";
 import { consumeAuthRedirect, getSession, signOut, updatePassword } from "./lib/supabase-client.js";
 
 const RECOVERY_FLAG = "trainsync:password-recovery";
@@ -34,7 +35,8 @@ form.addEventListener("submit", async (event) => {
   event.preventDefault();
   const password = String(document.querySelector("#newPassword")?.value || "");
   const confirmation = String(document.querySelector("#confirmPassword")?.value || "");
-  if (password.length < 8) return setState("Use at least 8 characters for the new password.");
+  const verdict = validateNewPassword(password);
+  if (!verdict.valid) return setState(verdict.message);
   if (password !== confirmation) return setState("The two passwords do not match.");
   submit.disabled = true;
   submit.textContent = "UPDATING…";
