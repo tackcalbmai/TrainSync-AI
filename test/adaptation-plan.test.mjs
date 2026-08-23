@@ -20,7 +20,7 @@ function resultRows(sessionId, date, exerciseKey = "push_up", actualReps = 11, t
   }));
 }
 
-function fatigueRows(sessionId, date, exerciseKey = "push_up") {
+function highEffortMissRows(sessionId, date, exerciseKey = "push_up") {
   return resultRows(sessionId, date, exerciseKey, 6).map((row) => ({ ...row, target_rir:2, rpe:10 }));
 }
 
@@ -86,6 +86,12 @@ test("using less than prescribed resistance prevents false overperformance", () 
   assert.equal(performance.state, "underperformed");
 });
 
+test("target misses at very high reported effort are labeled as observation, not fatigue diagnosis", () => {
+  const performance = classifyResultExposure(highEffortMissRows("ws1", "2026-08-31T18:00:00Z"));
+  assert.equal(performance.state, "high_effort_underperformance");
+  assert.match(performance.reasons.join(" "), /missed at very high effort/i);
+});
+
 test("top range with matched prescribed effort becomes a stronger progression signal", () => {
   const rows = resultRows("ws1", "2026-08-31T18:00:00Z", "push_up", 10).map((row) => ({ ...row, target_rir:2, rpe:8.5 }));
   const performance = classifyResultExposure(rows);
@@ -111,33 +117,34 @@ test("Garmin-like top range without reported effort stays lower confidence", () 
   assert.ok(performance.confidence <= 0.62);
 });
 
-test("two consecutive fatigue signals reduce only the next exercise volume by one working set", () => {
+test("two consecutive high-effort underperformance observations reduce only the next exercise volume by one working set", () => {
   const current = { id:"ps2", program_id:"p1", scheduled_date:"2026-09-02", payload:{ exercises:[pushupExercise()] } };
   const workout = { id:"ws2", program_session_id:"ps2", status:"completed" };
   const history = [
-    ...fatigueRows("ws2", "2026-09-02T18:00:00Z"),
-    ...fatigueRows("ws1", "2026-08-31T18:00:00Z"),
+    ...highEffortMissRows("ws2", "2026-09-02T18:00:00Z"),
+    ...highEffortMissRows("ws1", "2026-08-31T18:00:00Z"),
   ];
   const future = [{ id:"ps3", program_id:"p1", scheduled_date:"2026-09-04", status:"planned", revision:3, payload:{ exercises:[pushupExercise()] } }];
   const plan = buildPostSessionAdaptationPlan({ completedProgramSession:current, completedWorkoutSession:workout, setResults:history, futureProgramSessions:future });
   assert.equal(plan.valid, true);
   assert.equal(plan.proposals.length, 1);
   assert.equal(plan.proposals[0].decision.action, "reduce_or_review");
-  assert.equal(plan.proposals[0].decision.reasonCode, "REPEATED_FATIGUE_SIGNAL");
+  assert.equal(plan.proposals[0].decision.reasonCode, "REPEATED_HIGH_EFFORT_UNDERPERFORMANCE");
   assert.equal(plan.proposals[0].applied, true);
-  assert.equal(plan.proposals[0].mutation.reasonCode, "WORKING_SET_REMOVED_FOR_REPEATED_FATIGUE");
+  assert.equal(plan.proposals[0].mutation.reasonCode, "WORKING_SET_REMOVED_AFTER_REPEATED_HIGH_EFFORT_UNDERPERFORMANCE");
   assert.equal(plan.proposals[0].newPayload.exercises[0].sets.length, 2);
   assert.equal(plan.proposals[0].expectedRevision, 3);
-  assert.ok(plan.proposals[0].audit.evidence_rule_keys.includes("reduceAfterRepeatedFatigue"));
+  assert.ok(plan.proposals[0].audit.evidence_rule_keys.includes("reduceAfterRepeatedHighEffortUnderperformance"));
   assert.equal(plan.proposals[0].audit.metrics_snapshot.mutation.removedWorkingSets, 1);
+  assert.equal(plan.proposals[0].audit.metrics_snapshot.recentPerformance[0].state, "high_effort_underperformance");
 });
 
-test("fatigue at the two-set floor becomes an explicit review requirement", () => {
+test("high-effort underperformance at the two-set floor becomes an explicit review requirement", () => {
   const current = { id:"ps2", program_id:"p1", scheduled_date:"2026-09-02", payload:{ exercises:[pushupExercise()] } };
   const workout = { id:"ws2", program_session_id:"ps2", status:"completed" };
   const history = [
-    ...fatigueRows("ws2", "2026-09-02T18:00:00Z"),
-    ...fatigueRows("ws1", "2026-08-31T18:00:00Z"),
+    ...highEffortMissRows("ws2", "2026-09-02T18:00:00Z"),
+    ...highEffortMissRows("ws1", "2026-08-31T18:00:00Z"),
   ];
   const nextExercise = pushupExercise();
   nextExercise.sets = nextExercise.sets.slice(0, 2);
