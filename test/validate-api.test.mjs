@@ -33,16 +33,23 @@ test("validation API reports exact mapped workout as Garmin ready", async () => 
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.valid, true);
   assert.equal(res.body.garmin.ready, true);
-  assert.equal(res.body.garmin.reasonCode, "FIT_PROJECTION_READY");
+  assert.equal(res.body.garmin.publishReady, true);
+  assert.equal(res.body.garmin.reasonCode, "GARMIN_EXACT_TARGET_READY");
+  assert.equal(res.body.garmin.targetPolicy, "strict_exact_v1");
 });
 
-test("validation API explains unresolved range instead of calling it Garmin ready", async () => {
+test("validation API exposes range as device-verification candidate instead of Garmin ready", async () => {
   const res = responseCapture();
-  await handler({ method:"POST", body:{ workout:workout("push_up", { metricType:"reps", minReps:8, maxReps:10, targetReps:null, restSec:90 }) } }, res);
+  await handler({ method:"POST", body:{ workout:workout("push_up", { metricType:"reps", minReps:8, maxReps:10, targetReps:null, targetRir:2, restSec:90 }) } }, res);
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.valid, true);
   assert.equal(res.body.garmin.ready, false);
-  assert.equal(res.body.garmin.reasonCode, "TARGET_RANGE_PROVIDER_POLICY_REQUIRED");
+  assert.equal(res.body.garmin.publishReady, false);
+  assert.equal(res.body.garmin.reasonCode, "GARMIN_RANGE_DEVICE_VERIFICATION_REQUIRED");
+  assert.equal(res.body.garmin.rangePreviewAvailable, true);
+  assert.equal(res.body.garmin.deviceVerificationRequired, true);
+  assert.equal(res.body.garmin.candidatePolicy.key, "open_range_preview_v1");
+  assert.deepEqual(res.body.garmin.ranges.map((item) => [item.min, item.max, item.targetRir]), [[8, 10, 2]]);
 });
 
 test("validation API explains missing reviewed mapping", async () => {
