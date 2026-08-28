@@ -1,4 +1,6 @@
 import { runProgramAdaptation } from "../lib/adaptation-service.mjs";
+import { exerciseSubstitutionCandidates, validateExerciseSubstitution } from "../lib/exercise-substitution.mjs";
+import { getExerciseDefinition } from "../lib/exercise-catalog.mjs";
 
 const SUPABASE_URL = "https://sjihbrpbhfttuyzmbfku.supabase.co";
 const SUPABASE_KEY = "sb_publishable_bdSY8_XqGMnc5BylaWLROw_8ObfQkwI";
@@ -7,7 +9,7 @@ function headers(token, extra = {}) { return { apikey:SUPABASE_KEY, Authorizatio
 async function parseResponse(response) {
   const text = await response.text(); let data = null;
   try { data = text ? JSON.parse(text) : null; } catch { data = text; }
-  if (!response.ok) { const error = new Error(data?.message || data?.error || `Supabase request failed (${response.status})`); error.status = response.status; throw error; }
+  if (!response.ok) { const error = new Error(data?.message || data?.error || `Supabase request failed (${response.status})`); error.status = response.status; error.data = data; throw error; }
   return data;
 }
 async function rest(token, path, options = {}) {
@@ -32,6 +34,26 @@ async function getRequest(token, userId, requestId) {
   const rows = await rest(token, `adaptation_requests?${q}`);
   return rows?.[0] || null;
 }
+async function getProgramSession(token, userId, sessionId) {
+  const q = new URLSearchParams({ select:"id,user_id,program_id,status,payload,rationale,revision,updated_at", id:`eq.${sessionId}`, user_id:`eq.${userId}`, limit:"1" });
+  const rows = await rest(token, `program_sessions?${q}`);
+  return rows?.[0] || null;
+}
+async function getAthleteProfile(token, userId) {
+  const q = new URLSearchParams({ select:"user_id,equipment", user_id:`eq.${userId}`, limit:"1" });
+  const rows = await rest(token, `athlete_profiles?${q}`);
+  return rows?.[0] || null;
+}
+function plannedExerciseAt(session, exerciseOrder) {
+  const order = Number(exerciseOrder);
+  if (!Number.isInteger(order) || order < 1) return null;
+  return session?.payload?.exercises?.[order - 1] || null;
+}
+function safeSubstitutionReason(value) {
+  const allowed = new Set(["equipment_busy","equipment_unavailable","preference","temporary_substitution"]);
+  const reason = String(value || "temporary_substitution").trim();
+  return allowed.has(reason) ? reason : "temporary_substitution";
+}
 async function saveLoadOptions(token, userId, exerciseKey, loadsKg) {
   const conflict = encodeURIComponent("user_id,exercise_key");
   await rest(token, `exercise_load_options?on_conflict=${conflict}`, {
@@ -50,13 +72,7 @@ async function resolveInput(token, user, body) {
   const loadsKg = cleanLoads(body?.loadsKg ?? body?.loads);
   if (!loadsKg.length) return { statusCode:400, body:{ error:"LOAD_OPTIONS_REQUIRED", message:"Provide at least one available load in kilograms." } };
   await saveLoadOptions(token, user.id, request.exercise_key, loadsKg);
-  const adaptation = await runProgramAdaptation({
-    token,
-    userId:user.id,
-    workoutSessionId:request.source_workout_session_id,
-    apply:body?.dryRun !== true,
-    explicitAvailableLoadsByExercise:{ [request.exercise_key]:loadsKg },
-  });
+  const adaptation = await runProgramAdaptation({ token, userId:user.id, workoutSessionId:request.source_workout_session_id, apply:body?.dryRun !== true, explicitAvailableLoadsByExercise:{ [request.exercise_key]:loadsKg } });
   return { statusCode:200, body:{ saved:true, exerciseKey:request.exercise_key, loadsKg, adaptation } };
 }
 async function acknowledgeReview(token, user, body) {
@@ -68,12 +84,69 @@ async function acknowledgeReview(token, user, body) {
   if (request.request_type !== "review") return { statusCode:400, body:{ error:"ADAPTATION_REQUEST_TYPE_UNSUPPORTED" } };
   const now = new Date().toISOString();
   const q = new URLSearchParams({ id:`eq.${request.id}`, user_id:`eq.${user.id}` });
-  await rest(token, `adaptation_requests?${q}`, {
-    method:"PATCH",
-    headers:{ Prefer:"return=minimal" },
-    body:JSON.stringify({ status:"dismissed", resolution:{ resolvedBy:"user_acknowledged_review", acknowledgedAt:now }, updated_at:now }),
-  });
+  await rest(token, `adaptation_requests?${q}`, { method:"PATCH", headers:{ Prefer:"return=minimal" }, body:JSON.stringify({ status:"dismissed", resolution:{ resolvedBy:"user_acknowledged_review", acknowledgedAt:now }, updated_at:now }) });
   return { statusCode:200, body:{ acknowledged:true, requestId:request.id, exerciseKey:request.exercise_key } };
+}
+async function substitutionContext(token, user, body) {
+  const programSessionId = String(body?.programSessionId || "").trim();
+  const exerciseOrder = Number(body?.exerciseOrder);
+  if (!programSessionId || !Number.isInteger(exerciseOrder) || exerciseOrder < 1) return { error:{ statusCode:400, body:{ error:"SUBSTITUTION_CONTEXT_REQUIRED" } } };
+  const [session, profile] = await Promise.all([
+    getProgramSession(token, user.id, programSessionId).catch(() => null),
+    getAthleteProfile(token, user.id).catch(() => null),
+  ]);
+  if (!session) return { error:{ statusCode:404, body:{ error:"PROGRAM_SESSION_NOT_FOUND" } } };
+  if (!["planned","generated"].includes(String(session.status || ""))) return { error:{ statusCode:409, body:{ error:"PROGRAM_SESSION_NOT_MUTABLE" } } };
+  const planned = plannedExerciseAt(session, exerciseOrder);
+  const plannedKey = String(planned?.exerciseKey || "").trim();
+  if (!plannedKey || !getExerciseDefinition(plannedKey)) return { error:{ statusCode:409, body:{ error:"PLANNED_EXERCISE_NOT_CANONICAL" } } };
+  const requestedOriginal = String(body?.exerciseKey || body?.originalExerciseKey || plannedKey).trim();
+  if (requestedOriginal !== plannedKey) return { error:{ statusCode:409, body:{ error:"SUBSTITUTION_ORIGINAL_MISMATCH", plannedExerciseKey:plannedKey } } };
+  return { session, profile, planned, plannedKey, exerciseOrder, equipment:Array.isArray(profile?.equipment) ? profile.equipment : [] };
+}
+async function listSubstitutionCandidates(token, user, body) {
+  const context = await substitutionContext(token, user, body);
+  if (context.error) return context.error;
+  const candidates = exerciseSubstitutionCandidates(context.plannedKey, { equipment:context.equipment, limit:body?.limit || 8 });
+  return { statusCode:200, body:{ programSessionId:context.session.id, revision:context.session.revision, exerciseOrder:context.exerciseOrder, plannedExerciseKey:context.plannedKey, equipment:context.equipment, candidates } };
+}
+async function approveSubstitution(token, user, body) {
+  const context = await substitutionContext(token, user, body);
+  if (context.error) return context.error;
+  const replacementKey = String(body?.replacementExerciseKey || "").trim();
+  const replacement = getExerciseDefinition(replacementKey);
+  if (!replacement) return { statusCode:400, body:{ error:"REPLACEMENT_EXERCISE_NOT_CANONICAL" } };
+  let assessment;
+  try { assessment = validateExerciseSubstitution(context.plannedKey, replacementKey, { equipment:context.equipment }); }
+  catch (error) { return { statusCode:409, body:{ error:"EXERCISE_SUBSTITUTION_NOT_ALLOWED", reasonCode:error.code || error.assessment?.reasonCode || "SUBSTITUTION_REJECTED", assessment:error.assessment || null } }; }
+
+  const approvedAt = new Date().toISOString();
+  const approval = {
+    approvalId:crypto.randomUUID(),
+    exerciseOrder:context.exerciseOrder,
+    plannedExerciseKey:context.plannedKey,
+    plannedExerciseName:String(context.planned?.name || getExerciseDefinition(context.plannedKey)?.name || context.plannedKey),
+    replacementExerciseKey:replacement.key,
+    replacementExerciseName:replacement.name,
+    reason:safeSubstitutionReason(body?.reason),
+    score:assessment.score,
+    tier:assessment.tier,
+    warnings:assessment.warnings,
+    policyVersion:assessment.policyVersion,
+    catalogVersion:assessment.catalogVersion,
+    approvedAt,
+  };
+  const existing = Array.isArray(context.session.rationale?.liveSubstitutions) ? context.session.rationale.liveSubstitutions : [];
+  const liveSubstitutions = [...existing.filter((item) => Number(item?.exerciseOrder) !== context.exerciseOrder), approval];
+  const rationale = { ...(context.session.rationale || {}), liveSubstitutions };
+  const q = new URLSearchParams({ id:`eq.${context.session.id}`, user_id:`eq.${user.id}`, revision:`eq.${context.session.revision}` });
+  const rows = await rest(token, `program_sessions?${q}`, {
+    method:"PATCH",
+    headers:{ Prefer:"return=representation" },
+    body:JSON.stringify({ rationale, updated_at:approvedAt }),
+  });
+  if (!Array.isArray(rows) || !rows.length) return { statusCode:409, body:{ error:"PROGRAM_SESSION_REVISION_CONFLICT" } };
+  return { statusCode:200, body:{ approved:true, approval, assessment, replacement:{ exerciseKey:replacement.key, name:replacement.name, primaryMuscles:[...replacement.primaryMuscles], secondaryMuscles:[...replacement.secondaryMuscles], requiredEquipment:[...replacement.requiredEquipment], movementPattern:replacement.movementPattern, progressionMode:replacement.progressionMode, setMetric:replacement.defaultSetMetric } } };
 }
 
 export default async function handler(req, res) {
@@ -82,11 +155,20 @@ export default async function handler(req, res) {
   const user = await authenticate(token);
   if (!user) return res.status(401).json({ error:"SIGN_IN_REQUIRED" });
   try {
-    if (req.body?.action === "acknowledge_review") {
+    const action = String(req.body?.action || "");
+    if (action === "substitution_candidates") {
+      const result = await listSubstitutionCandidates(token, user, req.body || {});
+      return res.status(result.statusCode).json(result.body);
+    }
+    if (action === "approve_substitution") {
+      const result = await approveSubstitution(token, user, req.body || {});
+      return res.status(result.statusCode).json(result.body);
+    }
+    if (action === "acknowledge_review") {
       const result = await acknowledgeReview(token, user, req.body || {});
       return res.status(result.statusCode).json(result.body);
     }
-    if (req.body?.action === "resolve_input" || req.body?.requestId) {
+    if (action === "resolve_input" || req.body?.requestId) {
       const result = await resolveInput(token, user, req.body || {});
       return res.status(result.statusCode).json(result.body);
     }
