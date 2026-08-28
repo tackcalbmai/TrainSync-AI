@@ -1,3 +1,4 @@
+import "./program-missed-session-ui.js";
 import "./program-adjustment-explain-ui.js";
 import { currentUser } from "./lib/supabase-client.js";
 import { listProgramAdjustments, listPrograms } from "./lib/program-client.js";
