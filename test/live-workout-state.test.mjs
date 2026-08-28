@@ -119,7 +119,7 @@ test("timed sets require duration, not repetitions", () => {
 });
 
 test("finish requires at least one completed set and marks pending upload", () => {
-  const empty = createLiveWorkoutState({ workout:workout() });
+  const empty = createLiveWorkoutState({ workout:workout(), startedAt:"2026-08-28T05:00:00.000Z" });
   assert.throws(() => finishLiveWorkoutState(empty), /LIVE_WORKOUT_COMPLETED_SET_REQUIRED/);
   const partial = completeCurrentLiveSet(empty, { reps:8 }, "2026-08-28T05:02:00.000Z");
   const finished = finishLiveWorkoutState(partial, "2026-08-28T05:03:00.000Z");
