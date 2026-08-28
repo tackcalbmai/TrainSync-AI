@@ -1,182 +1,26 @@
 import { runProgramAdaptation } from "../lib/adaptation-service.mjs";
 import { exerciseSubstitutionCandidates, validateExerciseSubstitution } from "../lib/exercise-substitution.mjs";
 import { getExerciseDefinition } from "../lib/exercise-catalog.mjs";
+import { missedSessionAction } from "../lib/missed-session-service.mjs";
 
 const SUPABASE_URL = "https://sjihbrpbhfttuyzmbfku.supabase.co";
 const SUPABASE_KEY = "sb_publishable_bdSY8_XqGMnc5BylaWLROw_8ObfQkwI";
-function bearer(req) { const match = /^Bearer\s+(.+)$/i.exec(req.headers?.authorization || ""); return match?.[1] || null; }
-function headers(token, extra = {}) { return { apikey:SUPABASE_KEY, Authorization:`Bearer ${token}`, "Content-Type":"application/json", ...extra }; }
-async function parseResponse(response) {
-  const text = await response.text(); let data = null;
-  try { data = text ? JSON.parse(text) : null; } catch { data = text; }
-  if (!response.ok) { const error = new Error(data?.message || data?.error || `Supabase request failed (${response.status})`); error.status = response.status; error.data = data; throw error; }
-  return data;
-}
-async function rest(token, path, options = {}) {
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { ...options, headers:headers(token, options.headers || {}), signal:AbortSignal.timeout(12000) });
-  return parseResponse(response);
-}
-async function authenticate(token) {
-  if (!token) return null;
-  try {
-    const response = await fetch(`${SUPABASE_URL}/auth/v1/user`, { headers:{ apikey:SUPABASE_KEY, Authorization:`Bearer ${token}` }, signal:AbortSignal.timeout(8000) });
-    if (!response.ok) return null;
-    const user = await response.json();
-    return user?.id ? user : null;
-  } catch { return null; }
-}
-function cleanLoads(value) {
-  const values = Array.isArray(value) ? value : String(value || "").split(/[;,\s]+/);
-  return [...new Set(values.map(Number).filter((number) => Number.isFinite(number) && number > 0))].sort((a,b) => a-b).slice(0,100);
-}
-async function getRequest(token, userId, requestId) {
-  const q = new URLSearchParams({ select:"id,user_id,program_id,source_workout_session_id,target_program_session_id,exercise_key,request_type,reason_code,payload,status,resolution,created_at,updated_at", id:`eq.${requestId}`, user_id:`eq.${userId}`, limit:"1" });
-  const rows = await rest(token, `adaptation_requests?${q}`);
-  return rows?.[0] || null;
-}
-async function getProgramSession(token, userId, sessionId) {
-  const q = new URLSearchParams({ select:"id,user_id,program_id,status,payload,rationale,revision,updated_at", id:`eq.${sessionId}`, user_id:`eq.${userId}`, limit:"1" });
-  const rows = await rest(token, `program_sessions?${q}`);
-  return rows?.[0] || null;
-}
-async function getAthleteProfile(token, userId) {
-  const q = new URLSearchParams({ select:"user_id,equipment", user_id:`eq.${userId}`, limit:"1" });
-  const rows = await rest(token, `athlete_profiles?${q}`);
-  return rows?.[0] || null;
-}
-function plannedExerciseAt(session, exerciseOrder) {
-  const order = Number(exerciseOrder);
-  if (!Number.isInteger(order) || order < 1) return null;
-  return session?.payload?.exercises?.[order - 1] || null;
-}
-function safeSubstitutionReason(value) {
-  const allowed = new Set(["equipment_busy","equipment_unavailable","preference","temporary_substitution"]);
-  const reason = String(value || "temporary_substitution").trim();
-  return allowed.has(reason) ? reason : "temporary_substitution";
-}
-async function saveLoadOptions(token, userId, exerciseKey, loadsKg) {
-  const conflict = encodeURIComponent("user_id,exercise_key");
-  await rest(token, `exercise_load_options?on_conflict=${conflict}`, {
-    method:"POST",
-    headers:{ Prefer:"resolution=merge-duplicates,return=minimal" },
-    body:JSON.stringify({ user_id:userId, exercise_key:exerciseKey, loads_kg:loadsKg, source:"user_confirmed", updated_at:new Date().toISOString() }),
-  });
-}
-async function resolveInput(token, user, body) {
-  const requestId = String(body?.requestId || "").trim();
-  if (!requestId) return { statusCode:400, body:{ error:"ADAPTATION_REQUEST_REQUIRED" } };
-  const request = await getRequest(token, user.id, requestId).catch(() => null);
-  if (!request) return { statusCode:404, body:{ error:"ADAPTATION_REQUEST_NOT_FOUND" } };
-  if (request.status !== "pending") return { statusCode:409, body:{ error:"ADAPTATION_REQUEST_NOT_PENDING", status:request.status } };
-  if (request.request_type !== "load_options") return { statusCode:400, body:{ error:"ADAPTATION_REQUEST_TYPE_UNSUPPORTED" } };
-  const loadsKg = cleanLoads(body?.loadsKg ?? body?.loads);
-  if (!loadsKg.length) return { statusCode:400, body:{ error:"LOAD_OPTIONS_REQUIRED", message:"Provide at least one available load in kilograms." } };
-  await saveLoadOptions(token, user.id, request.exercise_key, loadsKg);
-  const adaptation = await runProgramAdaptation({ token, userId:user.id, workoutSessionId:request.source_workout_session_id, apply:body?.dryRun !== true, explicitAvailableLoadsByExercise:{ [request.exercise_key]:loadsKg } });
-  return { statusCode:200, body:{ saved:true, exerciseKey:request.exercise_key, loadsKg, adaptation } };
-}
-async function acknowledgeReview(token, user, body) {
-  const requestId = String(body?.requestId || "").trim();
-  if (!requestId) return { statusCode:400, body:{ error:"ADAPTATION_REQUEST_REQUIRED" } };
-  const request = await getRequest(token, user.id, requestId).catch(() => null);
-  if (!request) return { statusCode:404, body:{ error:"ADAPTATION_REQUEST_NOT_FOUND" } };
-  if (request.status !== "pending") return { statusCode:409, body:{ error:"ADAPTATION_REQUEST_NOT_PENDING", status:request.status } };
-  if (request.request_type !== "review") return { statusCode:400, body:{ error:"ADAPTATION_REQUEST_TYPE_UNSUPPORTED" } };
-  const now = new Date().toISOString();
-  const q = new URLSearchParams({ id:`eq.${request.id}`, user_id:`eq.${user.id}` });
-  await rest(token, `adaptation_requests?${q}`, { method:"PATCH", headers:{ Prefer:"return=minimal" }, body:JSON.stringify({ status:"dismissed", resolution:{ resolvedBy:"user_acknowledged_review", acknowledgedAt:now }, updated_at:now }) });
-  return { statusCode:200, body:{ acknowledged:true, requestId:request.id, exerciseKey:request.exercise_key } };
-}
-async function substitutionContext(token, user, body) {
-  const programSessionId = String(body?.programSessionId || "").trim();
-  const exerciseOrder = Number(body?.exerciseOrder);
-  if (!programSessionId || !Number.isInteger(exerciseOrder) || exerciseOrder < 1) return { error:{ statusCode:400, body:{ error:"SUBSTITUTION_CONTEXT_REQUIRED" } } };
-  const [session, profile] = await Promise.all([
-    getProgramSession(token, user.id, programSessionId).catch(() => null),
-    getAthleteProfile(token, user.id).catch(() => null),
-  ]);
-  if (!session) return { error:{ statusCode:404, body:{ error:"PROGRAM_SESSION_NOT_FOUND" } } };
-  if (!["planned","generated"].includes(String(session.status || ""))) return { error:{ statusCode:409, body:{ error:"PROGRAM_SESSION_NOT_MUTABLE" } } };
-  const planned = plannedExerciseAt(session, exerciseOrder);
-  const plannedKey = String(planned?.exerciseKey || "").trim();
-  if (!plannedKey || !getExerciseDefinition(plannedKey)) return { error:{ statusCode:409, body:{ error:"PLANNED_EXERCISE_NOT_CANONICAL" } } };
-  const requestedOriginal = String(body?.exerciseKey || body?.originalExerciseKey || plannedKey).trim();
-  if (requestedOriginal !== plannedKey) return { error:{ statusCode:409, body:{ error:"SUBSTITUTION_ORIGINAL_MISMATCH", plannedExerciseKey:plannedKey } } };
-  return { session, profile, planned, plannedKey, exerciseOrder, equipment:Array.isArray(profile?.equipment) ? profile.equipment : [] };
-}
-async function listSubstitutionCandidates(token, user, body) {
-  const context = await substitutionContext(token, user, body);
-  if (context.error) return context.error;
-  const candidates = exerciseSubstitutionCandidates(context.plannedKey, { equipment:context.equipment, limit:body?.limit || 8 });
-  return { statusCode:200, body:{ programSessionId:context.session.id, revision:context.session.revision, exerciseOrder:context.exerciseOrder, plannedExerciseKey:context.plannedKey, equipment:context.equipment, candidates } };
-}
-async function approveSubstitution(token, user, body) {
-  const context = await substitutionContext(token, user, body);
-  if (context.error) return context.error;
-  const replacementKey = String(body?.replacementExerciseKey || "").trim();
-  const replacement = getExerciseDefinition(replacementKey);
-  if (!replacement) return { statusCode:400, body:{ error:"REPLACEMENT_EXERCISE_NOT_CANONICAL" } };
-  let assessment;
-  try { assessment = validateExerciseSubstitution(context.plannedKey, replacementKey, { equipment:context.equipment }); }
-  catch (error) { return { statusCode:409, body:{ error:"EXERCISE_SUBSTITUTION_NOT_ALLOWED", reasonCode:error.code || error.assessment?.reasonCode || "SUBSTITUTION_REJECTED", assessment:error.assessment || null } }; }
+function bearer(req){const match=/^Bearer\s+(.+)$/i.exec(req.headers?.authorization||"");return match?.[1]||null;}
+function headers(token,extra={}){return{apikey:SUPABASE_KEY,Authorization:`Bearer ${token}`,"Content-Type":"application/json",...extra};}
+async function parseResponse(response){const text=await response.text();let data=null;try{data=text?JSON.parse(text):null;}catch{data=text;}if(!response.ok){const error=new Error(data?.message||data?.error||`Supabase request failed (${response.status})`);error.status=response.status;error.data=data;throw error;}return data;}
+async function rest(token,path,options={}){const response=await fetch(`${SUPABASE_URL}/rest/v1/${path}`,{...options,headers:headers(token,options.headers||{}),signal:AbortSignal.timeout(12000)});return parseResponse(response);}
+async function authenticate(token){if(!token)return null;try{const response=await fetch(`${SUPABASE_URL}/auth/v1/user`,{headers:{apikey:SUPABASE_KEY,Authorization:`Bearer ${token}`},signal:AbortSignal.timeout(8000)});if(!response.ok)return null;const user=await response.json();return user?.id?user:null;}catch{return null;}}
+function cleanLoads(value){const values=Array.isArray(value)?value:String(value||"").split(/[;,\s]+/);return[...new Set(values.map(Number).filter((number)=>Number.isFinite(number)&&number>0))].sort((a,b)=>a-b).slice(0,100);}
+async function getRequest(token,userId,requestId){const q=new URLSearchParams({select:"id,user_id,program_id,source_workout_session_id,target_program_session_id,exercise_key,request_type,reason_code,payload,status,resolution,created_at,updated_at",id:`eq.${requestId}`,user_id:`eq.${userId}`,limit:"1"});const rows=await rest(token,`adaptation_requests?${q}`);return rows?.[0]||null;}
+async function getProgramSession(token,userId,sessionId){const q=new URLSearchParams({select:"id,user_id,program_id,status,payload,rationale,revision,updated_at",id:`eq.${sessionId}`,user_id:`eq.${userId}`,limit:"1"});const rows=await rest(token,`program_sessions?${q}`);return rows?.[0]||null;}
+async function getAthleteProfile(token,userId){const q=new URLSearchParams({select:"user_id,equipment",user_id:`eq.${userId}`,limit:"1"});const rows=await rest(token,`athlete_profiles?${q}`);return rows?.[0]||null;}
+function plannedExerciseAt(session,exerciseOrder){const order=Number(exerciseOrder);if(!Number.isInteger(order)||order<1)return null;return session?.payload?.exercises?.[order-1]||null;}
+function safeSubstitutionReason(value){const allowed=new Set(["equipment_busy","equipment_unavailable","preference","temporary_substitution"]);const reason=String(value||"temporary_substitution").trim();return allowed.has(reason)?reason:"temporary_substitution";}
+async function saveLoadOptions(token,userId,exerciseKey,loadsKg){const conflict=encodeURIComponent("user_id,exercise_key");await rest(token,`exercise_load_options?on_conflict=${conflict}`,{method:"POST",headers:{Prefer:"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({user_id:userId,exercise_key:exerciseKey,loads_kg:loadsKg,source:"user_confirmed",updated_at:new Date().toISOString()})});}
+async function resolveInput(token,user,body){const requestId=String(body?.requestId||"").trim();if(!requestId)return{statusCode:400,body:{error:"ADAPTATION_REQUEST_REQUIRED"}};const request=await getRequest(token,user.id,requestId).catch(()=>null);if(!request)return{statusCode:404,body:{error:"ADAPTATION_REQUEST_NOT_FOUND"}};if(request.status!=="pending")return{statusCode:409,body:{error:"ADAPTATION_REQUEST_NOT_PENDING",status:request.status}};if(request.request_type!=="load_options")return{statusCode:400,body:{error:"ADAPTATION_REQUEST_TYPE_UNSUPPORTED"}};const loadsKg=cleanLoads(body?.loadsKg??body?.loads);if(!loadsKg.length)return{statusCode:400,body:{error:"LOAD_OPTIONS_REQUIRED",message:"Provide at least one available load in kilograms."}};await saveLoadOptions(token,user.id,request.exercise_key,loadsKg);const adaptation=await runProgramAdaptation({token,userId:user.id,workoutSessionId:request.source_workout_session_id,apply:body?.dryRun!==true,explicitAvailableLoadsByExercise:{[request.exercise_key]:loadsKg}});return{statusCode:200,body:{saved:true,exerciseKey:request.exercise_key,loadsKg,adaptation}};}
+async function acknowledgeReview(token,user,body){const requestId=String(body?.requestId||"").trim();if(!requestId)return{statusCode:400,body:{error:"ADAPTATION_REQUEST_REQUIRED"}};const request=await getRequest(token,user.id,requestId).catch(()=>null);if(!request)return{statusCode:404,body:{error:"ADAPTATION_REQUEST_NOT_FOUND"}};if(request.status!=="pending")return{statusCode:409,body:{error:"ADAPTATION_REQUEST_NOT_PENDING",status:request.status}};if(request.request_type!=="review")return{statusCode:400,body:{error:"ADAPTATION_REQUEST_TYPE_UNSUPPORTED"}};const now=new Date().toISOString(),q=new URLSearchParams({id:`eq.${request.id}`,user_id:`eq.${user.id}`});await rest(token,`adaptation_requests?${q}`,{method:"PATCH",headers:{Prefer:"return=minimal"},body:JSON.stringify({status:"dismissed",resolution:{resolvedBy:"user_acknowledged_review",acknowledgedAt:now},updated_at:now})});return{statusCode:200,body:{acknowledged:true,requestId:request.id,exerciseKey:request.exercise_key}};}
+async function substitutionContext(token,user,body){const programSessionId=String(body?.programSessionId||"").trim(),exerciseOrder=Number(body?.exerciseOrder);if(!programSessionId||!Number.isInteger(exerciseOrder)||exerciseOrder<1)return{error:{statusCode:400,body:{error:"SUBSTITUTION_CONTEXT_REQUIRED"}}};const[session,profile]=await Promise.all([getProgramSession(token,user.id,programSessionId).catch(()=>null),getAthleteProfile(token,user.id).catch(()=>null)]);if(!session)return{error:{statusCode:404,body:{error:"PROGRAM_SESSION_NOT_FOUND"}}};if(!["planned","generated"].includes(String(session.status||"")))return{error:{statusCode:409,body:{error:"PROGRAM_SESSION_NOT_MUTABLE"}}};const planned=plannedExerciseAt(session,exerciseOrder),plannedKey=String(planned?.exerciseKey||"").trim();if(!plannedKey||!getExerciseDefinition(plannedKey))return{error:{statusCode:409,body:{error:"PLANNED_EXERCISE_NOT_CANONICAL"}}};const requestedOriginal=String(body?.exerciseKey||body?.originalExerciseKey||plannedKey).trim();if(requestedOriginal!==plannedKey)return{error:{statusCode:409,body:{error:"SUBSTITUTION_ORIGINAL_MISMATCH",plannedExerciseKey:plannedKey}}};return{session,profile,planned,plannedKey,exerciseOrder,equipment:Array.isArray(profile?.equipment)?profile.equipment:[]};}
+async function listSubstitutionCandidates(token,user,body){const context=await substitutionContext(token,user,body);if(context.error)return context.error;const candidates=exerciseSubstitutionCandidates(context.plannedKey,{equipment:context.equipment,limit:body?.limit||8});return{statusCode:200,body:{programSessionId:context.session.id,revision:context.session.revision,exerciseOrder:context.exerciseOrder,plannedExerciseKey:context.plannedKey,equipment:context.equipment,candidates}};}
+async function approveSubstitution(token,user,body){const context=await substitutionContext(token,user,body);if(context.error)return context.error;const replacementKey=String(body?.replacementExerciseKey||"").trim(),replacement=getExerciseDefinition(replacementKey);if(!replacement)return{statusCode:400,body:{error:"REPLACEMENT_EXERCISE_NOT_CANONICAL"}};let assessment;try{assessment=validateExerciseSubstitution(context.plannedKey,replacementKey,{equipment:context.equipment});}catch(error){return{statusCode:409,body:{error:"EXERCISE_SUBSTITUTION_NOT_ALLOWED",reasonCode:error.code||error.assessment?.reasonCode||"SUBSTITUTION_REJECTED",assessment:error.assessment||null}};}const approvedAt=new Date().toISOString(),approval={approvalId:crypto.randomUUID(),exerciseOrder:context.exerciseOrder,plannedExerciseKey:context.plannedKey,plannedExerciseName:String(context.planned?.name||getExerciseDefinition(context.plannedKey)?.name||context.plannedKey),replacementExerciseKey:replacement.key,replacementExerciseName:replacement.name,reason:safeSubstitutionReason(body?.reason),score:assessment.score,tier:assessment.tier,warnings:assessment.warnings,policyVersion:assessment.policyVersion,catalogVersion:assessment.catalogVersion,approvedAt};const existing=Array.isArray(context.session.rationale?.liveSubstitutions)?context.session.rationale.liveSubstitutions:[],liveSubstitutions=[...existing.filter((item)=>Number(item?.exerciseOrder)!==context.exerciseOrder),approval],rationale={...(context.session.rationale||{}),liveSubstitutions},q=new URLSearchParams({id:`eq.${context.session.id}`,user_id:`eq.${user.id}`,revision:`eq.${context.session.revision}`});const rows=await rest(token,`program_sessions?${q}`,{method:"PATCH",headers:{Prefer:"return=representation"},body:JSON.stringify({rationale,updated_at:approvedAt})});if(!Array.isArray(rows)||!rows.length)return{statusCode:409,body:{error:"PROGRAM_SESSION_REVISION_CONFLICT"}};return{statusCode:200,body:{approved:true,approval,assessment,replacement:{exerciseKey:replacement.key,name:replacement.name,primaryMuscles:[...replacement.primaryMuscles],secondaryMuscles:[...replacement.secondaryMuscles],requiredEquipment:[...replacement.requiredEquipment],movementPattern:replacement.movementPattern,progressionMode:replacement.progressionMode,setMetric:replacement.defaultSetMetric}}};}
 
-  const approvedAt = new Date().toISOString();
-  const approval = {
-    approvalId:crypto.randomUUID(),
-    exerciseOrder:context.exerciseOrder,
-    plannedExerciseKey:context.plannedKey,
-    plannedExerciseName:String(context.planned?.name || getExerciseDefinition(context.plannedKey)?.name || context.plannedKey),
-    replacementExerciseKey:replacement.key,
-    replacementExerciseName:replacement.name,
-    reason:safeSubstitutionReason(body?.reason),
-    score:assessment.score,
-    tier:assessment.tier,
-    warnings:assessment.warnings,
-    policyVersion:assessment.policyVersion,
-    catalogVersion:assessment.catalogVersion,
-    approvedAt,
-  };
-  const existing = Array.isArray(context.session.rationale?.liveSubstitutions) ? context.session.rationale.liveSubstitutions : [];
-  const liveSubstitutions = [...existing.filter((item) => Number(item?.exerciseOrder) !== context.exerciseOrder), approval];
-  const rationale = { ...(context.session.rationale || {}), liveSubstitutions };
-  const q = new URLSearchParams({ id:`eq.${context.session.id}`, user_id:`eq.${user.id}`, revision:`eq.${context.session.revision}` });
-  const rows = await rest(token, `program_sessions?${q}`, {
-    method:"PATCH",
-    headers:{ Prefer:"return=representation" },
-    body:JSON.stringify({ rationale, updated_at:approvedAt }),
-  });
-  if (!Array.isArray(rows) || !rows.length) return { statusCode:409, body:{ error:"PROGRAM_SESSION_REVISION_CONFLICT" } };
-  return { statusCode:200, body:{ approved:true, approval, assessment, replacement:{ exerciseKey:replacement.key, name:replacement.name, primaryMuscles:[...replacement.primaryMuscles], secondaryMuscles:[...replacement.secondaryMuscles], requiredEquipment:[...replacement.requiredEquipment], movementPattern:replacement.movementPattern, progressionMode:replacement.progressionMode, setMetric:replacement.defaultSetMetric } } };
-}
-
-export default async function handler(req, res) {
-  if (req.method !== "POST") return res.status(405).json({ error:"METHOD_NOT_ALLOWED" });
-  const token = bearer(req);
-  const user = await authenticate(token);
-  if (!user) return res.status(401).json({ error:"SIGN_IN_REQUIRED" });
-  try {
-    const action = String(req.body?.action || "");
-    if (action === "substitution_candidates") {
-      const result = await listSubstitutionCandidates(token, user, req.body || {});
-      return res.status(result.statusCode).json(result.body);
-    }
-    if (action === "approve_substitution") {
-      const result = await approveSubstitution(token, user, req.body || {});
-      return res.status(result.statusCode).json(result.body);
-    }
-    if (action === "acknowledge_review") {
-      const result = await acknowledgeReview(token, user, req.body || {});
-      return res.status(result.statusCode).json(result.body);
-    }
-    if (action === "resolve_input" || req.body?.requestId) {
-      const result = await resolveInput(token, user, req.body || {});
-      return res.status(result.statusCode).json(result.body);
-    }
-    const workoutSessionId = String(req.body?.workoutSessionId || "").trim();
-    if (!workoutSessionId) return res.status(400).json({ error:"WORKOUT_SESSION_REQUIRED" });
-    const result = await runProgramAdaptation({ token, userId:user.id, workoutSessionId, apply:req.body?.dryRun !== true });
-    return res.status(200).json(result);
-  } catch (error) {
-    return res.status(error.status || 500).json({ error:"ADAPTATION_FAILED", message:error.message || "Adaptation failed." });
-  }
-}
+export default async function handler(req,res){if(req.method!=="POST")return res.status(405).json({error:"METHOD_NOT_ALLOWED"});const token=bearer(req),user=await authenticate(token);if(!user)return res.status(401).json({error:"SIGN_IN_REQUIRED"});try{const action=String(req.body?.action||"");if(action==="missed_session_options"||action==="resolve_missed_session"){const result=await missedSessionAction({token,userId:user.id,body:req.body||{}});return res.status(result.statusCode).json(result.body);}if(action==="substitution_candidates"){const result=await listSubstitutionCandidates(token,user,req.body||{});return res.status(result.statusCode).json(result.body);}if(action==="approve_substitution"){const result=await approveSubstitution(token,user,req.body||{});return res.status(result.statusCode).json(result.body);}if(action==="acknowledge_review"){const result=await acknowledgeReview(token,user,req.body||{});return res.status(result.statusCode).json(result.body);}if(action==="resolve_input"||req.body?.requestId){const result=await resolveInput(token,user,req.body||{});return res.status(result.statusCode).json(result.body);}const workoutSessionId=String(req.body?.workoutSessionId||"").trim();if(!workoutSessionId)return res.status(400).json({error:"WORKOUT_SESSION_REQUIRED"});const result=await runProgramAdaptation({token,userId:user.id,workoutSessionId,apply:req.body?.dryRun!==true});return res.status(200).json(result);}catch(error){return res.status(error.status||500).json({error:"ADAPTATION_FAILED",message:error.message||"Adaptation failed."});}}
