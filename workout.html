@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#090b0d" />
+  <meta name="description" content="Live strength workout execution in TrainSync AI." />
+  <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/workout-live.css" />
+  <title>Workout · TrainSync AI</title>
+</head>
+<body class="live-workout-body">
+  <div class="noise"></div>
+  <main class="live-shell">
+    <header class="live-topbar">
+      <a class="brand" href="/" aria-label="TrainSync AI home"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span><span><b>TRAINSYNC</b><em>AI</em></span></a>
+      <button class="live-exit" id="exitWorkout" type="button">EXIT</button>
+    </header>
+
+    <section class="live-header">
+      <div>
+        <div class="eyebrow"><span></span> LIVE WORKOUT</div>
+        <h1 id="liveWorkoutTitle">Workout</h1>
+        <p id="liveWorkoutMeta">Loading session…</p>
+      </div>
+      <div class="live-clock"><strong id="elapsedTime">00:00</strong><small>ELAPSED</small></div>
+    </section>
+
+    <div class="live-progress-track"><i id="liveProgressBar"></i></div>
+    <div class="live-progress-meta"><span id="liveProgressText">0 / 0 SETS</span><span id="liveSkippedText"></span></div>
+
+    <section class="live-grid">
+      <article class="current-set-card" id="currentSetCard">
+        <div class="set-position"><span id="exercisePosition">EXERCISE 1</span><span id="setPosition">SET 1 / 1</span></div>
+        <div class="current-exercise">
+          <div><small id="exerciseGroup">STRENGTH</small><h2 id="exerciseName">—</h2></div>
+          <button class="history-edit" id="editPrevious" type="button" hidden>EDIT PREVIOUS</button>
+        </div>
+
+        <div class="target-panel">
+          <div><small>TARGET</small><strong id="targetPrescription">—</strong></div>
+          <div><small>REST</small><strong id="targetRest">—</strong></div>
+          <div><small>EFFORT</small><strong id="targetRir">—</strong></div>
+        </div>
+
+        <div class="last-time" id="lastTime"><span>LAST TIME</span><strong>NO HISTORY YET</strong></div>
+
+        <form id="setForm" class="set-form">
+          <div class="primary-inputs">
+            <label id="actualMetricLabel">REPS<input id="actualMetric" type="number" min="1" step="1" inputmode="numeric" required></label>
+            <label>LOAD <small id="loadUnit">KG</small><input id="actualWeight" type="number" min="0" step="0.5" inputmode="decimal" placeholder="—"></label>
+          </div>
+          <div class="effort-inputs">
+            <label>RIR <small>preferred</small><input id="actualRir" type="number" min="0" max="6" step="0.5" inputmode="decimal" placeholder="optional"></label>
+            <label>RPE <small>fallback</small><input id="actualRpe" type="number" min="1" max="10" step="0.5" inputmode="decimal" placeholder="optional"></label>
+          </div>
+          <p class="effort-note">Report only what you actually know. RIR takes priority for adaptation; RPE is used only when RIR is absent.</p>
+          <button class="complete-set" id="completeSet" type="submit">COMPLETE SET <span>→</span></button>
+          <div class="set-secondary-actions">
+            <button id="skipSet" type="button">SKIP SET</button>
+            <button id="finishEarly" type="button">FINISH WORKOUT</button>
+          </div>
+        </form>
+      </article>
+
+      <aside class="live-side">
+        <article class="queue-card">
+          <div class="mini-head"><span>SESSION QUEUE</span><span id="queueCount">0 LEFT</span></div>
+          <div id="exerciseQueue" class="exercise-queue"></div>
+        </article>
+        <article class="live-rule-card">
+          <div class="mini-head"><span>CONTROL LOGIC</span><span>DETERMINISTIC</span></div>
+          <p>TrainSync records what happened first. Adaptation happens only after the completed session is saved; the live screen never changes today's prescription mid-set.</p>
+        </article>
+      </aside>
+    </section>
+  </main>
+
+  <div class="rest-overlay" id="restOverlay" hidden>
+    <div class="rest-card">
+      <div class="eyebrow"><span></span> REST TIMER</div>
+      <strong id="restCountdown">02:00</strong>
+      <p id="restNextSet">Next set ready when you are.</p>
+      <div class="rest-actions"><button id="restMinus" type="button">−30</button><button id="skipRest" type="button">SKIP REST</button><button id="restPlus" type="button">+30</button></div>
+    </div>
+  </div>
+
+  <div class="edit-overlay" id="editOverlay" hidden>
+    <div class="edit-card">
+      <button class="edit-close" id="editClose" type="button">×</button>
+      <div class="eyebrow"><span></span> CORRECT SET</div>
+      <h2 id="editTitle">Previous set</h2>
+      <form id="editForm">
+        <div class="primary-inputs"><label id="editMetricLabel">REPS<input id="editMetric" type="number" min="1" step="1" required></label><label>LOAD <small id="editLoadUnit">KG</small><input id="editWeight" type="number" min="0" step="0.5"></label></div>
+        <div class="effort-inputs"><label>RIR<input id="editRir" type="number" min="0" max="6" step="0.5"></label><label>RPE<input id="editRpe" type="number" min="1" max="10" step="0.5"></label></div>
+        <button class="complete-set" type="submit">SAVE CORRECTION</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="finish-overlay" id="finishOverlay" hidden>
+    <div class="finish-card">
+      <div class="eyebrow"><span></span> WORKOUT COMPLETE</div>
+      <h2 id="finishTitle">Save session?</h2>
+      <p id="finishSummary"></p>
+      <label>Session notes<textarea id="finishNotes" placeholder="Optional: technique, pain, unusual fatigue, anything worth remembering…"></textarea></label>
+      <div class="finish-actions"><button id="finishCancel" type="button">KEEP TRAINING</button><button id="finishSave" type="button">SAVE & FINISH →</button></div>
+      <small id="finishNetworkHint">If the network fails, your completed session stays saved on this device and can be retried.</small>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="/workout-live.js"></script>
+</body>
+</html>
