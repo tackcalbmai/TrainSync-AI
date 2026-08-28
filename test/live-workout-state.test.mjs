@@ -12,8 +12,10 @@ import {
   liveWorkoutProgress,
   skipCurrentLiveSet,
   skipLiveRest,
+  substitutePendingExercise,
   updateCompletedLiveSet,
 } from "../lib/live-workout-state.mjs";
+import { validateExerciseSubstitution } from "../lib/exercise-substitution.mjs";
 
 function workout() {
   return {
@@ -102,6 +104,7 @@ test("completed actual payload preserves canonical identity and target RIR", () 
   const rows = completedActualSets(state);
   assert.equal(rows.length, 2);
   assert.equal(rows[0].exerciseKey, "barbell_bench_press");
+  assert.equal(rows[0].plannedExerciseKey, "barbell_bench_press");
   assert.equal(rows[0].targetMinReps, 6);
   assert.equal(rows[0].targetMaxReps, 8);
   assert.equal(rows[0].targetRir, 2);
@@ -126,4 +129,43 @@ test("finish requires at least one completed set and marks pending upload", () =
   assert.equal(finished.uploadState, "pending");
   assert.equal(finished.finishedAt, "2026-08-28T05:03:00.000Z");
   assert.equal(liveWorkoutElapsedSeconds(finished), 180);
+});
+
+test("approved substitution changes only pending sets and resets prescribed load", () => {
+  let state = createLiveWorkoutState({ workout:workout() });
+  state = completeCurrentLiveSet(state, { reps:8, weightKg:80, rir:2 });
+  state = skipLiveRest(state);
+  const assessment = validateExerciseSubstitution("barbell_bench_press", "dumbbell_bench_press", { equipment:["dumbbells","bench"] });
+  state = substitutePendingExercise(state, {
+    exerciseOrder:1,
+    replacement:{ exerciseKey:"dumbbell_bench_press", name:"Dumbbell Bench Press", primaryMuscles:["chest"] },
+    assessment,
+    approvalId:"approved-1",
+    reason:"equipment_busy",
+  });
+  assert.equal(state.queue[0].exerciseKey, "barbell_bench_press");
+  assert.equal(state.queue[0].status, "completed");
+  assert.equal(state.queue[1].exerciseKey, "dumbbell_bench_press");
+  assert.equal(state.queue[1].plannedExerciseKey, "barbell_bench_press");
+  assert.equal(state.queue[1].targetWeightKg, null);
+  assert.equal(state.queue[1].targetMinReps, 6);
+  assert.equal(state.queue[1].targetRir, 2);
+});
+
+test("substituted completed payload separates planned from performed identity", () => {
+  let state = createLiveWorkoutState({ workout:workout() });
+  const assessment = validateExerciseSubstitution("barbell_bench_press", "dumbbell_bench_press", { equipment:["dumbbells","bench"] });
+  state = substitutePendingExercise(state, {
+    exerciseOrder:1,
+    replacement:{ exerciseKey:"dumbbell_bench_press", name:"Dumbbell Bench Press", primaryMuscles:["chest"] },
+    assessment,
+    approvalId:"approved-2",
+  });
+  state = completeCurrentLiveSet(state, { reps:7, weightKg:30, rir:2 });
+  const row = completedActualSets(state)[0];
+  assert.equal(row.exerciseKey, "dumbbell_bench_press");
+  assert.equal(row.exerciseName, "Dumbbell Bench Press");
+  assert.equal(row.plannedExerciseKey, "barbell_bench_press");
+  assert.equal(row.targetWeightKg, null);
+  assert.equal(row.substitution.approvalId, "approved-2");
 });

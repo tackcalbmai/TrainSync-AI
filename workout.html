@@ -8,6 +8,7 @@
   <link rel="icon" href="/icon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="/styles.css" />
   <link rel="stylesheet" href="/workout-live.css" />
+  <link rel="stylesheet" href="/workout-substitution.css" />
   <title>Workout · TrainSync AI</title>
 </head>
 <body class="live-workout-body">
@@ -77,40 +78,14 @@
     </section>
   </main>
 
-  <div class="rest-overlay" id="restOverlay" hidden>
-    <div class="rest-card">
-      <div class="eyebrow"><span></span> REST TIMER</div>
-      <strong id="restCountdown">02:00</strong>
-      <p id="restNextSet">Next set ready when you are.</p>
-      <div class="rest-actions"><button id="restMinus" type="button">−30</button><button id="skipRest" type="button">SKIP REST</button><button id="restPlus" type="button">+30</button></div>
-    </div>
-  </div>
+  <div class="rest-overlay" id="restOverlay" hidden><div class="rest-card"><div class="eyebrow"><span></span> REST TIMER</div><strong id="restCountdown">02:00</strong><p id="restNextSet">Next set ready when you are.</p><div class="rest-actions"><button id="restMinus" type="button">−30</button><button id="skipRest" type="button">SKIP REST</button><button id="restPlus" type="button">+30</button></div></div></div>
 
-  <div class="edit-overlay" id="editOverlay" hidden>
-    <div class="edit-card">
-      <button class="edit-close" id="editClose" type="button">×</button>
-      <div class="eyebrow"><span></span> CORRECT SET</div>
-      <h2 id="editTitle">Previous set</h2>
-      <form id="editForm">
-        <div class="primary-inputs"><label id="editMetricLabel">REPS<input id="editMetric" type="number" min="1" step="1" required></label><label>LOAD <small id="editLoadUnit">KG</small><input id="editWeight" type="number" min="0" step="0.5"></label></div>
-        <div class="effort-inputs"><label>RIR<input id="editRir" type="number" min="0" max="6" step="0.5"></label><label>RPE<input id="editRpe" type="number" min="1" max="10" step="0.5"></label></div>
-        <button class="complete-set" type="submit">SAVE CORRECTION</button>
-      </form>
-    </div>
-  </div>
+  <div class="edit-overlay" id="editOverlay" hidden><div class="edit-card"><button class="edit-close" id="editClose" type="button">×</button><div class="eyebrow"><span></span> CORRECT SET</div><h2 id="editTitle">Previous set</h2><form id="editForm"><div class="primary-inputs"><label id="editMetricLabel">REPS<input id="editMetric" type="number" min="1" step="1" required></label><label>LOAD <small id="editLoadUnit">KG</small><input id="editWeight" type="number" min="0" step="0.5"></label></div><div class="effort-inputs"><label>RIR<input id="editRir" type="number" min="0" max="6" step="0.5"></label><label>RPE<input id="editRpe" type="number" min="1" max="10" step="0.5"></label></div><button class="complete-set" type="submit">SAVE CORRECTION</button></form></div></div>
 
-  <div class="finish-overlay" id="finishOverlay" hidden>
-    <div class="finish-card">
-      <div class="eyebrow"><span></span> WORKOUT COMPLETE</div>
-      <h2 id="finishTitle">Save session?</h2>
-      <p id="finishSummary"></p>
-      <label>Session notes<textarea id="finishNotes" placeholder="Optional: technique, pain, unusual fatigue, anything worth remembering…"></textarea></label>
-      <div class="finish-actions"><button id="finishCancel" type="button">KEEP TRAINING</button><button id="finishSave" type="button">SAVE & FINISH →</button></div>
-      <small id="finishNetworkHint">If the network fails, your completed session stays saved on this device and can be retried.</small>
-    </div>
-  </div>
+  <div class="finish-overlay" id="finishOverlay" hidden><div class="finish-card"><div class="eyebrow"><span></span> WORKOUT COMPLETE</div><h2 id="finishTitle">Save session?</h2><p id="finishSummary"></p><label>Session notes<textarea id="finishNotes" placeholder="Optional: technique, pain, unusual fatigue, anything worth remembering…"></textarea></label><div class="finish-actions"><button id="finishCancel" type="button">KEEP TRAINING</button><button id="finishSave" type="button">SAVE & FINISH →</button></div><small id="finishNetworkHint">If the network fails, your completed session stays saved on this device and can be retried.</small></div></div>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <script type="module" src="/workout-live.js"></script>
+  <script type="module" src="/workout-substitution-ui.js"></script>
 </body>
 </html>
