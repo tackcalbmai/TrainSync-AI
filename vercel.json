@@ -9,6 +9,7 @@
     { "source": "/mcp", "destination": "/api/mcp" },
     { "source": "/integrations", "destination": "/integrations.html" },
     { "source": "/program", "destination": "/program.html" },
+    { "source": "/workout", "destination": "/workout.html" },
     { "source": "/", "destination": "/index.html" }
   ],
   "headers": [
