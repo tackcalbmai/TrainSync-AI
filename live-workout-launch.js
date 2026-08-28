@@ -17,6 +17,11 @@ function show(message) {
   clearTimeout(show.timer);
   show.timer = setTimeout(() => { toast.className = "toast"; }, 3600);
 }
+function sameWorkout(a, b) {
+  if (!a || !b) return false;
+  if (a.programSessionId && b.programSessionId) return a.programSessionId === b.programSessionId;
+  return Boolean(a.id && b.id && a.id === b.id && Number(a.revision || 1) === Number(b.revision || 1));
+}
 function sameProgramWorkout(row, workout) {
   return Boolean(workout?.programSessionId && row?.payload?.programSessionId === workout.programSessionId);
 }
@@ -52,6 +57,12 @@ async function launch() {
   const validation = validateWorkout(workout);
   if (!validation.valid) return show("This workout must pass validation before it can start.");
 
+  const active = readJson(ACTIVE_KEY);
+  if (active?.workout && !active.finishedAt && sameWorkout(active.workout, workout)) {
+    location.href = "/workout";
+    return;
+  }
+
   button.disabled = true;
   button.textContent = "PREPARING…";
   try {
@@ -70,11 +81,7 @@ function refreshResumeLabel() {
   if (!button) return;
   const active = readJson(ACTIVE_KEY);
   const current = readJson("trainsync:lastWorkout");
-  const same = active?.workout && current && (
-    (active.workout.programSessionId && active.workout.programSessionId === current.programSessionId) ||
-    (active.workout.id && active.workout.id === current.id)
-  );
-  if (same && !active.finishedAt) button.innerHTML = "RESUME WORKOUT <span>→</span>";
+  if (active?.workout && current && sameWorkout(active.workout, current) && !active.finishedAt) button.innerHTML = "RESUME WORKOUT <span>→</span>";
 }
 
 button?.addEventListener("click", launch);
