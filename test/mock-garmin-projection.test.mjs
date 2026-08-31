@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { publishWorkoutMock } from "../lib/mock-garmin.mjs";
+import { getMockConnectionStatus, publishWorkoutMock } from "../lib/mock-garmin.mjs";
 
 function workout() {
   return {
@@ -22,6 +22,17 @@ function workout() {
     }],
   };
 }
+
+test("mock connection status never impersonates an official Garmin connection", () => {
+  const status = getMockConnectionStatus();
+  assert.equal(status.provider, "garmin");
+  assert.equal(status.mode, "mock");
+  assert.equal(status.connected, false);
+  assert.equal(status.authorizationValid, false);
+  assert.equal(status.mockReady, true);
+  assert.equal(status.officialCredentialsConfigured, false);
+  assert.match(status.message, /No official Garmin account is connected/i);
+});
 
 test("mock publish remains mock-only but exercises the real Garmin projection layer", () => {
   const result = publishWorkoutMock(workout());
