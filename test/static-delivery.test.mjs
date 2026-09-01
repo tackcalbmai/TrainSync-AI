@@ -66,3 +66,18 @@ test("syntax gate covers every Vercel API function and stays within Hobby limit"
     assert.ok(check.includes(file), `npm run check does not cover ${file}`);
   }
 });
+
+test("production headers enforce a constrained browser security policy", () => {
+  const config = JSON.parse(read("vercel.json"));
+  const globalHeaders = config.headers?.find((entry) => entry.source === "/(.*)")?.headers || [];
+  const headers = Object.fromEntries(globalHeaders.map((entry) => [String(entry.key).toLowerCase(), String(entry.value)]));
+  const csp = headers["content-security-policy"] || "";
+
+  assert.equal(headers["x-frame-options"], "DENY");
+  assert.match(csp, /default-src 'self'/);
+  assert.match(csp, /script-src 'self' https:\/\/cdn\.jsdelivr\.net/);
+  assert.match(csp, /connect-src 'self' https:\/\/sjihbrpbhfttuyzmbfku\.supabase\.co/);
+  assert.match(csp, /object-src 'none'/);
+  assert.match(csp, /frame-ancestors 'none'/);
+  assert.doesNotMatch(csp, /script-src[^;]*'unsafe-inline'/);
+});
