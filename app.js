@@ -1,5 +1,6 @@
 import {
   completeWorkoutSession,
+  createCompletionId,
   currentUser,
   getProfile,
   getSession,
@@ -28,6 +29,8 @@ let currentWorkout = null;
 let currentWorkoutDbId = null;
 let currentProfile = null;
 let deferredInstall = null;
+let manualCompletionId = null;
+let manualCompletionWorkoutId = null;
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>\"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[char]));
@@ -261,6 +264,10 @@ async function openLogSession() {
   if (!currentWorkout) return showToast("Build or load a workout first.");
   if (currentWorkout.status === "completed") return showToast("This workout is already logged as completed.");
   if (!currentProfile) await loadProfileContext();
+  if (!manualCompletionId || manualCompletionWorkoutId !== currentWorkout.id) {
+    manualCompletionId = createCompletionId();
+    manualCompletionWorkoutId = currentWorkout.id;
+  }
 
   $("#logTitle").textContent = currentWorkout.title;
   $("#logDuration").value = currentWorkout.estimatedDurationMinutes || 50;
@@ -340,6 +347,7 @@ async function submitLogSession(event) {
     const started = new Date(finished.getTime() - durationMinutes * 60 * 1000);
     const completionArgs = {
       workoutDbId:currentWorkoutDbId,
+      completionId:manualCompletionId,
       workout:currentWorkout,
       actualSets:sets,
       sets,
@@ -355,6 +363,7 @@ async function submitLogSession(event) {
       completion = await completeProgramWorkout(completionArgs);
     } else {
       if (!currentWorkoutDbId) await persistWorkout(currentWorkout);
+      if (!currentWorkoutDbId) throw new Error("Workout could not sync yet. Your entries remain here; retry when the connection is available.");
       completion = await completeWorkoutSession(completionArgs);
     }
 
@@ -362,6 +371,8 @@ async function submitLogSession(event) {
     localStorage.setItem("trainsync:lastWorkout", JSON.stringify(currentWorkout));
     renderWorkout(currentWorkout);
     closeLogSession();
+    manualCompletionId = null;
+    manualCompletionWorkoutId = null;
     await Promise.all([refreshHistory(), refreshOverview()]);
 
     if (completion?.adaptation?.status === "error") showToast("Session saved. Automatic program adaptation needs review.");
