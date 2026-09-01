@@ -11,12 +11,12 @@ import {
 } from "../lib/garmin-exercise-map.mjs";
 import { EXERCISE_CATALOG } from "../lib/exercise-catalog.mjs";
 
-test("Garmin mapping registry is internally valid and pinned to FIT 21.213.0", () => {
+test("Garmin mapping registry is internally valid and pinned to FIT 21.214.0", () => {
   const audit = validateGarminExerciseMap();
   assert.equal(audit.valid, true, audit.errors.join("\n"));
-  assert.equal(audit.fitProfileVersion, "21.213.0");
-  assert.equal(GARMIN_FIT_PROFILE_VERSION, "21.213.0");
-  assert.match(GARMIN_EXERCISE_MAP_VERSION, /^fit-21\.213\.0\+trainsync-/);
+  assert.equal(audit.fitProfileVersion, "21.214.0");
+  assert.equal(GARMIN_FIT_PROFILE_VERSION, "21.214.0");
+  assert.match(GARMIN_EXERCISE_MAP_VERSION, /^fit-21\.214\.0\+trainsync-/);
 });
 
 test("exact mappings use reviewed official category and exercise-name IDs", () => {

@@ -1,7 +1,9 @@
 const SUPABASE_AUTH_BASE = "https://sjihbrpbhfttuyzmbfku.supabase.co/auth/v1";
 const DISCOVERY_URL = "https://sjihbrpbhfttuyzmbfku.supabase.co/.well-known/oauth-authorization-server/auth/v1";
+import { methodNotAllowed } from "../lib/http.mjs";
 
-export default async function handler(_req, res) {
+export default async function handler(req, res) {
+  if (req.method !== "GET") return methodNotAllowed(res, ["GET"]);
   try {
     const response = await fetch(DISCOVERY_URL, {
       headers: { Accept: "application/json" },

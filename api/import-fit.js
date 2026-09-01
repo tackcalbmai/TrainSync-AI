@@ -2,16 +2,19 @@ import { parseGarminFitActivity } from "../lib/garmin-fit.mjs";
 import { matchGarminActivityToWorkout, targetForGarminSet } from "../lib/garmin-activity-ingestion.mjs";
 import { normalizeExerciseKey } from "../lib/progress.mjs";
 import { runProgramAdaptation } from "../lib/adaptation-service.mjs";
+import { methodNotAllowed } from "../lib/http.mjs";
 
 const SUPABASE_URL = "https://sjihbrpbhfttuyzmbfku.supabase.co";
 const SUPABASE_KEY = "sb_publishable_bdSY8_XqGMnc5BylaWLROw_8ObfQkwI";
-const MAX_FIT_BYTES = 4 * 1024 * 1024;
+const MAX_FIT_BYTES = 3 * 1024 * 1024;
+const MAX_FIT_BASE64_CHARS = Math.ceil(MAX_FIT_BYTES / 3) * 4;
 function bearerToken(req) { const match = /^Bearer\s+(.+)$/i.exec(req.headers?.authorization || ""); return match?.[1] || null; }
 function headers(token, extra = {}) { return { apikey: SUPABASE_KEY, Authorization: `Bearer ${token}`, "Content-Type": "application/json", ...extra }; }
 async function parseResponse(response) { const text = await response.text(); let data = null; try { data = text ? JSON.parse(text) : null; } catch { data = text; } if (!response.ok) { const error = new Error(data?.message || data?.error || `Supabase request failed (${response.status})`); error.status = response.status; throw error; } return data; }
 async function authenticate(token) { if (!token) return null; try { const response = await fetch(`${SUPABASE_URL}/auth/v1/user`, { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(8000) }); if (!response.ok) return null; const user = await response.json(); return user?.id ? user : null; } catch { return null; } }
 async function rest(token, path, options = {}) { const response = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { ...options, headers: headers(token, options.headers || {}), signal: AbortSignal.timeout(12000) }); return parseResponse(response); }
-function decodeBase64Fit(value) { if (typeof value !== "string" || !value.trim()) throw new Error("FIT_FILE_REQUIRED"); const clean = value.includes(",") ? value.slice(value.indexOf(",") + 1) : value; const bytes = Buffer.from(clean, "base64"); if (!bytes.length) throw new Error("FIT_FILE_EMPTY"); if (bytes.length > MAX_FIT_BYTES) throw new Error("FIT_FILE_TOO_LARGE"); return new Uint8Array(bytes); }
+function decodeBase64Fit(value) { if (typeof value !== "string" || !value.trim()) throw new Error("FIT_FILE_REQUIRED"); const clean = value.includes(",") ? value.slice(value.indexOf(",") + 1) : value; if (clean.length > MAX_FIT_BASE64_CHARS) throw new Error("FIT_FILE_TOO_LARGE"); const bytes = Buffer.from(clean, "base64"); if (!bytes.length) throw new Error("FIT_FILE_EMPTY"); if (bytes.length > MAX_FIT_BYTES) throw new Error("FIT_FILE_TOO_LARGE"); return new Uint8Array(bytes); }
+function fitParseMessage(error) { if (error?.message === "FIT_FILE_REQUIRED") return "Choose a FIT file to import."; if (error?.message === "FIT_FILE_EMPTY") return "The FIT file is empty."; if (error?.message === "FIT_FILE_TOO_LARGE") return "FIT files must be 3 MB or smaller."; return "TrainSync could not read this FIT file."; }
 async function lookupImport(token, userId, field, value) { if (!value) return null; const query = new URLSearchParams({ select: "id,provider_activity_id,fit_file_hash,status,workout_session_id,metadata,created_at,updated_at", user_id: `eq.${userId}`, [field]: `eq.${value}`, limit: "1" }); const rows = await rest(token, `garmin_activity_imports?${query}`); return Array.isArray(rows) ? (rows[0] || null) : null; }
 async function existingImport(token, userId, providerActivityId, fileHash) { return await lookupImport(token, userId, "provider_activity_id", providerActivityId) || await lookupImport(token, userId, "fit_file_hash", fileHash); }
 async function recentImports(token, userId) { const query = new URLSearchParams({ select: "id,provider_activity_id,sport,sub_sport,started_at,completed_at,status,error_code,metadata,created_at,updated_at", user_id: `eq.${userId}`, order: "created_at.desc", limit: "10" }); return rest(token, `garmin_activity_imports?${query}`); }
@@ -50,13 +53,13 @@ function adaptationSummary(result) {
 }
 
 export default async function handler(req, res) {
-  if (!["GET", "POST"].includes(req.method)) return res.status(405).json({ error: "METHOD_NOT_ALLOWED" });
+  if (!["GET", "POST"].includes(req.method)) return methodNotAllowed(res, ["GET", "POST"]);
   const token = bearerToken(req); const user = await authenticate(token); if (!user) return res.status(401).json({ error: "SIGN_IN_REQUIRED" });
   if (req.method === "GET") { const imports = await recentImports(token, user.id).catch(() => []); return res.status(200).json({ ...providerState(), imports }); }
 
   let activity;
   try { const bytes = decodeBase64Fit(req.body?.fitBase64); activity = parseGarminFitActivity(bytes, { providerActivityId: req.body?.providerActivityId || null }); }
-  catch (error) { return res.status(400).json({ error: "FIT_PARSE_FAILED", message: error.message }); }
+  catch (error) { return res.status(400).json({ error: error?.message === "FIT_FILE_TOO_LARGE" ? "FIT_FILE_TOO_LARGE" : "FIT_PARSE_FAILED", message: fitParseMessage(error) }); }
 
   const providerActivityId = activity.providerActivityId;
   const duplicate = await existingImport(token, user.id, providerActivityId, activity.fileHash).catch(() => null);
@@ -95,6 +98,7 @@ export default async function handler(req, res) {
   } else await patchImport(token, importRow.id, { fit_file_hash: activity.fileHash, sport: activity.sport, sub_sport: activity.subSport, started_at: activity.startedAt, completed_at: activity.completedAt, status: "parsed", error_code: null, metadata: baseMetadata });
 
   let session = null;
+  let importCommitted = false;
   try {
     const targetPlan = matchedProgramSession || matchedWorkout;
     session = await createSession(token, { user_id: user.id, workout_id: linkedWorkoutId, program_session_id: matchedProgramSession?.id || null, title: targetPlan?.title || activity.title, started_at: activity.startedAt || activity.completedAt || new Date().toISOString(), completed_at: activity.completedAt || new Date().toISOString(), duration_seconds: activity.durationSeconds, status: "completed", notes: matchedProgramSession ? "Automatically imported from Garmin FIT and matched to an active TrainSync program session." : matchedWorkout ? "Automatically imported from Garmin FIT and matched to a TrainSync workout." : "Automatically imported from Garmin FIT activity.", total_sets: activity.summary.totalSets, total_volume_kg: activity.summary.totalVolumeKg, source: "garmin", updated_at: new Date().toISOString() });
@@ -123,6 +127,10 @@ export default async function handler(req, res) {
     });
     await rest(token, "set_results", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify(setRows) });
 
+    const committedMetadata = { summary: activity.summary, title: activity.title, setCount: setRows.length, timedSetCount: setRows.filter((row) => row.metric_type === "duration_seconds").length, match, matchedProgramSessionId:matchedProgramSession?.id || null, matchedWorkoutId:linkedWorkoutId, workoutStatusUpdated:false, programSessionStatusUpdated:false, adaptation:null };
+    await patchImport(token, importRow.id, { status: "imported", workout_session_id: session.id, error_code: null, metadata:committedMetadata });
+    importCommitted = true;
+
     let workoutStatusUpdated = false, programSessionStatusUpdated = false;
     if (linkedWorkoutId) { try { await markWorkoutCompleted(token, { ...(matchedWorkout || {}), id:linkedWorkoutId, payload:matchedWorkout?.payload || matchedProgramSession?.payload || {} }); workoutStatusUpdated = true; } catch {} }
     if (matchedProgramSession) { try { await markProgramSessionCompleted(token, matchedProgramSession); programSessionStatusUpdated = true; } catch {} }
@@ -137,11 +145,14 @@ export default async function handler(req, res) {
     }
     const adaptation = adaptationSummary(adaptationResult);
     const metadata = { summary: activity.summary, title: activity.title, setCount: setRows.length, timedSetCount: setRows.filter((row) => row.metric_type === "duration_seconds").length, match, matchedProgramSessionId:matchedProgramSession?.id || null, matchedWorkoutId:linkedWorkoutId, workoutStatusUpdated, programSessionStatusUpdated, adaptation };
-    await patchImport(token, importRow.id, { status: "imported", workout_session_id: session.id, error_code: null, metadata });
+    await patchImport(token, importRow.id, { status: "imported", workout_session_id: session.id, error_code: null, metadata }).catch(() => {});
     return res.status(200).json({ imported: true, duplicate: false, providerActivityId, workoutSessionId: session.id, matchedProgramSessionId: matchedProgramSession?.id || null, matchedWorkoutId: linkedWorkoutId, workoutStatusUpdated, programSessionStatusUpdated, adaptation, match, activity });
   } catch (error) {
-    await cleanupSession(token, session?.id);
-    if (importRow?.id) await patchImport(token, importRow.id, { status: "failed", error_code: "IMPORT_FAILED", metadata: { message: error.message, summary: activity.summary, match } }).catch(() => {});
-    return res.status(500).json({ error: "IMPORT_FAILED", message: error.message });
+    if (!importCommitted) {
+      await cleanupSession(token, session?.id);
+      if (importRow?.id) await patchImport(token, importRow.id, { status: "failed", error_code: "IMPORT_FAILED", metadata: { message: error.message, summary: activity.summary, match } }).catch(() => {});
+      return res.status(500).json({ error: "IMPORT_FAILED", message: "The FIT activity could not be saved. Your existing training data was not changed." });
+    }
+    return res.status(500).json({ error: "POST_IMPORT_UPDATE_FAILED", message: "The FIT activity was saved, but a follow-up program status update needs retry." });
   }
 }

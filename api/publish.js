@@ -3,6 +3,7 @@ import {
   publishWorkoutWithGarminProvider,
   resolveGarminProviderMode,
 } from "../lib/garmin-provider.mjs";
+import { methodNotAllowed, publicErrorDetails, publicErrorMessage } from "../lib/http.mjs";
 
 const SUPABASE_URL = "https://sjihbrpbhfttuyzmbfku.supabase.co";
 const SUPABASE_KEY = "sb_publishable_bdSY8_XqGMnc5BylaWLROw_8ObfQkwI";
@@ -32,7 +33,7 @@ function providerMode() {
 }
 
 export default async function handler(req, res) {
-  if (!["GET", "POST"].includes(req.method)) return res.status(405).json({ error:"METHOD_NOT_ALLOWED" });
+  if (!["GET", "POST"].includes(req.method)) return methodNotAllowed(res, ["GET", "POST"]);
   try {
     const mode = providerMode();
     const token = bearer(req);
@@ -58,8 +59,8 @@ export default async function handler(req, res) {
     return res.status(Number(error.status) || 400).json({
       success:false,
       code:error.code || "GARMIN_API_ERROR",
-      message:error.message || "Garmin publication failed.",
-      details:error.details ?? null,
+      message:publicErrorMessage(error, "Garmin publication failed."),
+      details:publicErrorDetails(error),
     });
   }
 }

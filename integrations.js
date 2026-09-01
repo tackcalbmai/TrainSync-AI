@@ -149,10 +149,10 @@ function selectFile(file) {
     $("#fitFileName").textContent = "Choose a .fit file";
     return showToast("TrainSync currently accepts extracted .fit files only.");
   }
-  if (file.size > 4 * 1024 * 1024) {
+  if (file.size > 3 * 1024 * 1024) {
     $("#fitFile").value = "";
     $("#fitFileName").textContent = "Choose a smaller .fit file";
-    return showToast("FIT file is larger than 4 MB.");
+    return showToast("FIT file is larger than 3 MB.");
   }
   selectedFile = file;
   $("#fitDrop").classList.add("has-file");
