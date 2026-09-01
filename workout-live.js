@@ -1,5 +1,6 @@
 import {
   completeWorkoutSession,
+  createCompletionId,
   currentUser,
   getProfile,
   listSetResults,
@@ -250,10 +251,12 @@ async function saveFinishedWorkout() {
   button.disabled = true;
   button.textContent = "SAVING…";
   try {
+    if (!state.completionId) { state.completionId = createCompletionId(); saveState(state); }
     if (!state.finishedAt) saveState(finishLiveWorkoutState(state));
     const sets = completedActualSets(state);
     const args = {
       workoutDbId:state.workoutDbId,
+      completionId:state.completionId,
       workout:state.workout,
       actualSets:sets,
       sets,
