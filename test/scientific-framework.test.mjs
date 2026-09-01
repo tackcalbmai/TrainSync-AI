@@ -29,13 +29,23 @@ test("scientific claims always resolve to real registered sources", () => {
 });
 
 test("heuristic thresholds cannot masquerade as high-confidence evidence rules", () => {
-  const heuristicRules = ["accessoryMinRestSec", "samePriorityMuscleMinGapHours", "minimumPriorityFractionalSets", "durationToleranceRatio"];
+  const heuristicRules = ["fractionalSecondarySet", "accessoryMinRestSec", "samePriorityMuscleMinGapHours", "minimumPriorityFractionalSets", "durationToleranceRatio"];
   for (const ruleKey of heuristicRules) {
     const binding = RULE_EVIDENCE_BINDINGS[ruleKey];
     assert.ok(binding, `${ruleKey} missing scientific binding`);
     assert.notEqual(binding.kind, "evidence_backed");
     assert.notEqual(binding.level, "high");
   }
+});
+
+test("secondary-set fraction stays an evidence-informed model rather than an exact physiological law", () => {
+  const claim = CLAIMS.fractional_direct_indirect_sets;
+  const binding = RULE_EVIDENCE_BINDINGS.fractionalSecondarySet;
+  assert.equal(claim.confidence, "moderate");
+  assert.equal(binding.kind, "evidence_informed_heuristic");
+  assert.equal(binding.level, "moderate");
+  assert.match(claim.applicability, /does not establish.*exactly one-half/i);
+  assert.match(binding.note, /not a universal/i);
 });
 
 test("evidence retrieval returns claims and source provenance for explainability", () => {
