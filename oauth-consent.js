@@ -1,5 +1,6 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.3/+esm";
 import { getSession, refreshSession, signIn, signUp } from "/lib/supabase-client.js";
+import { validateNewPassword } from "/lib/password-policy.mjs";
 
 const SUPABASE_URL = "https://sjihbrpbhfttuyzmbfku.supabase.co";
 const SUPABASE_KEY = "sb_publishable_bdSY8_XqGMnc5BylaWLROw_8ObfQkwI";
@@ -99,6 +100,17 @@ authForm.addEventListener("submit", async (event) => {
   clearError();
   const email = document.querySelector("#email").value.trim();
   const password = document.querySelector("#password").value;
+  if (!email || !password) {
+    showError("Enter your email and password.");
+    return;
+  }
+  if (authMode === "signup") {
+    const passwordCheck = validateNewPassword(password);
+    if (!passwordCheck.valid) {
+      showError(passwordCheck.message);
+      return;
+    }
+  }
   authSubmit.disabled = true;
   authSubmit.textContent = authMode === "signup" ? "CREATING…" : "SIGNING IN…";
   try {
@@ -122,6 +134,9 @@ authForm.addEventListener("submit", async (event) => {
 authSwitch.addEventListener("click", () => {
   clearError();
   authMode = authMode === "signin" ? "signup" : "signin";
+  const password = document.querySelector("#password");
+  password.autocomplete = authMode === "signup" ? "new-password" : "current-password";
+  password.minLength = authMode === "signup" ? 8 : 1;
   authSubmit.textContent = authMode === "signup" ? "CREATE ACCOUNT" : "SIGN IN";
   authSwitch.textContent = authMode === "signup" ? "Already have an account? Sign in" : "New here? Create account";
 });

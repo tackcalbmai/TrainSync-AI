@@ -17,9 +17,9 @@ function applyReadiness() {
   node.innerHTML=`<span class="garmin-readiness-icon">${escapeHtml(model.icon)}</span><span class="garmin-readiness-copy"><b>${escapeHtml(model.baseLabel)}</b><small>${escapeHtml(model.garminLabel)}</small></span>`;
   node.title=model.explanation;node.dataset.garminReason=model.reasonCode;node.dataset.garminPublishReady=model.publishReady?"true":"false";
   publishButton.dataset.garminReason=model.reasonCode;publishButton.dataset.garminPublishReady=model.publishReady?"true":"false";
-  if(model.publishReady)publishButton.title="Mock publishing is enabled. Exact targets also pass the strict Garmin FIT projection contract.";
-  else if(model.reasonCode==="GARMIN_RANGE_DEVICE_VERIFICATION_REQUIRED")publishButton.title="Mock publishing remains available, but real Garmin FIT publishing is blocked until the range-target OPEN representation is verified on compatible hardware.";
-  else publishButton.title=`${model.garminLabel}. Mock publishing does not imply real Garmin compatibility.`;
+  if(model.publishReady)publishButton.title="Exact targets pass the strict Garmin projection contract. Official sync is shown only when an authorized provider is connected.";
+  else if(model.reasonCode==="GARMIN_RANGE_DEVICE_VERIFICATION_REQUIRED")publishButton.title="Official Garmin publishing remains blocked until the range-target OPEN representation is verified on compatible hardware.";
+  else publishButton.title=`${model.garminLabel}. Projection readiness does not imply an official Garmin connection.`;
 }
 let scheduled=false;
 function scheduleReadiness(){if(scheduled)return;scheduled=true;queueMicrotask(()=>{scheduled=false;applyReadiness();});}

@@ -8,6 +8,7 @@
   <style>
     :root{color-scheme:dark;--bg:#090b0d;--panel:#12161a;--line:#252b31;--text:#f3f4f6;--muted:#8e969f;--lime:#c8ff35;--danger:#ff6262}*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(circle at 50% -20%,#202831 0,#090b0d 48%);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;display:grid;place-items:center;padding:24px}.card{width:min(520px,100%);background:linear-gradient(180deg,#151a1f,#0f1215);border:1px solid var(--line);border-radius:24px;padding:28px;box-shadow:0 30px 80px #0008}.brand{font-size:13px;letter-spacing:.18em;font-weight:800}.brand b{color:var(--lime)}.eyebrow{margin-top:30px;color:var(--lime);font-size:11px;letter-spacing:.18em;font-weight:800}h1{font-size:30px;line-height:1.05;margin:9px 0 10px}p{color:var(--muted);line-height:1.55}.request{margin:24px 0;border:1px solid var(--line);border-radius:16px;padding:16px;background:#0c0f12}.row{display:flex;justify-content:space-between;gap:18px;padding:10px 0;border-bottom:1px solid #20252a}.row:last-child{border:0}.row span{color:var(--muted);font-size:12px}.row strong{font-size:12px;text-align:right;overflow-wrap:anywhere}.scopes{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}.scope{border:1px solid #333b43;border-radius:999px;padding:7px 10px;font-size:11px;color:#d8dde2}.actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}.btn{border:0;border-radius:13px;padding:14px 16px;font-weight:900;letter-spacing:.06em;cursor:pointer}.approve{background:var(--lime);color:#0b0d0f}.deny{background:#22282e;color:#fff}.btn:disabled{opacity:.5;cursor:wait}.error{border:1px solid #6d3131;background:#271416;color:#ffb0b0;border-radius:12px;padding:12px;margin:16px 0;font-size:13px}.auth{margin-top:20px}.auth label{display:block;color:var(--muted);font-size:12px;margin:12px 0}.auth input{width:100%;margin-top:7px;border:1px solid #303840;background:#090c0f;color:#fff;border-radius:12px;padding:13px;font:inherit}.auth .btn{width:100%;margin-top:8px}.switch{width:100%;border:0;background:none;color:var(--muted);padding:12px;cursor:pointer}.hidden{display:none!important}.status{color:var(--muted);text-align:center;padding:28px 0}.foot{font-size:11px;color:#69727b;margin-top:18px;text-align:center}
   </style>
+  <link rel="stylesheet" href="/accessibility.css" />
 </head>
 <body>
   <main class="card">
@@ -16,7 +17,7 @@
     <h1 id="title">Connect ChatGPT</h1>
     <p id="subtitle">Review access before allowing an AI client to use your TrainSync account.</p>
     <div id="status" class="status">Loading authorization request…</div>
-    <div id="error" class="error hidden"></div>
+    <div id="error" class="error hidden" role="alert" aria-live="assertive"></div>
 
     <section id="authPanel" class="auth hidden">
       <p>Sign in to the TrainSync account you want ChatGPT to use.</p>

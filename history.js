@@ -1,5 +1,6 @@
 import { currentUser, getProfile, listSetResults, listWorkoutSessions } from "./lib/supabase-client.js";
 import { epleyE1rmKg, summarizeProgress } from "./lib/progress.mjs";
+import { signInRedirectUrl } from "./lib/auth-redirect.mjs";
 
 const $ = (selector) => document.querySelector(selector);
 const KG_TO_LB = 2.2046226218;
@@ -53,7 +54,7 @@ function renderBestLifts(summary) {
 }
 
 async function load() {
-  if (!currentUser()) { location.replace("/"); return; }
+  if (!currentUser()) { location.replace(signInRedirectUrl("/history")); return; }
   try {
     const [profile, sessions, sets] = await Promise.all([getProfile(), listWorkoutSessions(250), listSetResults(5000)]);
     units = profile?.units === "imperial" ? "imperial" : "metric";

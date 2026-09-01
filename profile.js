@@ -1,5 +1,6 @@
 import { currentUser, getProfile, saveProfile, signOut } from "./lib/supabase-client.js";
 import { browserTimezone, normalizeSessionMinutes, normalizeTimezone } from "./lib/timezone.mjs";
+import { signInRedirectUrl } from "./lib/auth-redirect.mjs";
 
 const $ = (selector) => document.querySelector(selector);
 const toast = $("#toast");
@@ -27,7 +28,7 @@ function fillProfile(profile) {
 
 async function loadProfile() {
   if (!currentUser()) {
-    location.replace("/");
+    location.replace(signInRedirectUrl("/profile"));
     return;
   }
   try {

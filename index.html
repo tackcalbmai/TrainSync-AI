@@ -4,12 +4,13 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="theme-color" content="#090b0d" />
-  <meta name="description" content="AI strength programming with Garmin-ready workout publishing." />
+  <meta name="description" content="Strength programming that records actual performance and adapts what comes next." />
   <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="icon" href="/icon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="/styles.css" />
   <link rel="stylesheet" href="/workout-log.css" />
   <link rel="stylesheet" href="/garmin-readiness-ui.css" />
+  <link rel="stylesheet" href="/accessibility.css" />
   <title>TrainSync AI</title>
 </head>
 <body>
@@ -33,7 +34,7 @@
         <div class="hero-copy">
           <div class="eyebrow"><span></span> STRENGTH CONTROL SYSTEM</div>
           <h1>Train hard.<br><span>Program smarter.</span></h1>
-          <p>Describe the session. TrainSync turns it into a structured strength workout, remembers what you actually perform, and keeps it ready for Garmin Connect.</p>
+          <p>Describe the session. TrainSync turns it into a structured strength workout, records what you actually perform, and uses that evidence to shape what comes next.</p>
         </div>
 
         <div class="command-panel">
@@ -59,7 +60,6 @@
               <h2 id="workoutTitle">Upper Body A</h2>
               <div class="date-line"><span id="workoutDate">Tomorrow</span> · <span id="workoutIntensity">MODERATE</span></div>
             </div>
-            <button class="menu-button" aria-label="Workout menu">•••</button>
           </div>
 
           <div class="metric-row">
@@ -81,21 +81,21 @@
             <div class="workout-actions">
               <button class="start-workout-button" id="startWorkoutButton" type="button">START WORKOUT <span>→</span></button>
               <button class="log-button" id="logSessionButton" type="button">LOG SESSION</button>
-              <button class="publish-button mock" id="publishButton"><span class="garmin-g">G</span><span>SEND TO GARMIN</span></button>
+              <button class="publish-button" id="publishButton" type="button" hidden><span class="garmin-g">G</span><span>OFFICIAL GARMIN SYNC</span></button>
             </div>
           </div>
         </article>
 
         <aside class="side-stack">
           <article class="mini-card garmin-card">
-            <div class="mini-head"><span>GARMIN CONNECT</span><a href="/integrations" style="color:var(--warning);text-decoration:none">RESULTS SYNC →</a></div>
+            <div class="mini-head"><span>GARMIN STATUS</span><a href="/integrations" style="color:var(--warning);text-decoration:none">FIT IMPORT →</a></div>
             <div class="connection-main">
               <div class="garmin-badge">G</div>
-              <div><strong>Provider ready</strong><small>Mock publish · FIT result ingestion ready</small></div>
+              <div><strong>Official sync pending</strong><small>Validated projection · manual FIT import available</small></div>
             </div>
-            <div class="sync-line"><span>Publishing</span><strong>MockTrainingProvider</strong></div>
-            <div class="sync-line"><span>Last mock publish</span><strong id="lastPublish">—</strong></div>
-            <div class="sync-line"><span>Results</span><strong>Waiting for Garmin API access</strong></div>
+            <div class="sync-line"><span>Official send</span><strong>Pending Garmin access</strong></div>
+            <div class="sync-line"><span>Projection check</span><strong id="lastPublish">Available</strong></div>
+            <div class="sync-line"><span>Completed activities</span><strong>Manual FIT import</strong></div>
             <div class="sync-line"><span>Account</span><strong id="cloudSyncState">Sign in to sync</strong></div>
           </article>
 
@@ -128,7 +128,7 @@
   </div>
 
   <div class="auth-modal" id="authModal" hidden>
-    <div class="auth-card" role="dialog" aria-modal="true" aria-labelledby="authMode">
+    <div class="auth-card" role="dialog" aria-modal="true" aria-labelledby="authMode" data-initial-focus="#authEmail">
       <button class="auth-close" id="authClose" aria-label="Close">×</button>
       <div class="eyebrow"><span></span> CLOUD SYNC</div>
       <h2 id="authMode">SIGN IN</h2>
@@ -143,7 +143,7 @@
   </div>
 
   <div class="log-modal" id="logModal" hidden>
-    <div class="log-card" role="dialog" aria-modal="true" aria-labelledby="logTitle">
+    <div class="log-card" role="dialog" aria-modal="true" aria-labelledby="logTitle" data-initial-focus="#logDuration">
       <button class="log-close" id="logClose" type="button" aria-label="Close">×</button>
       <div class="eyebrow"><span></span> COMPLETED SESSION</div>
       <h2 id="logTitle">Log workout</h2>
@@ -170,5 +170,6 @@
   <script type="module" src="/live-workout-launch.js"></script>
   <script type="module" src="/garmin-readiness-ui.js"></script>
   <script type="module" src="/next-session-insight-ui.js"></script>
+  <script type="module" src="/dialog-accessibility.js"></script>
 </body>
 </html>

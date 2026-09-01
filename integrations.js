@@ -1,4 +1,5 @@
 import { currentUser, getSession, refreshSession } from "./lib/supabase-client.js";
+import { signInRedirectUrl } from "./lib/auth-redirect.mjs";
 
 const $ = (selector) => document.querySelector(selector);
 const toast = $("#toast");
@@ -204,7 +205,7 @@ async function importFit() {
 }
 
 if (!currentUser()) {
-  location.replace("/");
+  location.replace(signInRedirectUrl("/integrations"));
 } else {
   $("#fitFile").addEventListener("change", (event) => selectFile(event.target.files?.[0] || null));
   $("#importButton").addEventListener("click", importFit);

@@ -45,6 +45,7 @@ async function checkSecurityHeaders() {
   const { response } = await fetchText("/");
   const csp = response.headers.get("content-security-policy") || "";
   requireValue(response.headers.get("x-frame-options") === "DENY", "X-Frame-Options must be DENY");
+  requireValue((response.headers.get("strict-transport-security") || "").includes("max-age="), "HSTS is missing");
   requireValue(csp.includes("default-src 'self'"), "CSP default-src is missing");
   requireValue(csp.includes("script-src 'self' https://cdn.jsdelivr.net"), "CSP script-src does not preserve pinned Supabase JS CDN access");
   requireValue(csp.includes("connect-src 'self' https://sjihbrpbhfttuyzmbfku.supabase.co"), "CSP connect-src does not preserve Supabase access");
@@ -67,7 +68,7 @@ async function main() {
   await checkPage("/reset-password", "Choose a new password");
   await checkPage("/oauth/consent", "SECURE AUTHORIZATION");
   await checkPage("/manifest.webmanifest", "TrainSync AI");
-  await checkPage("/sw.js", "trainsync-v21");
+  await checkPage("/sw.js", "trainsync-v22");
   await checkPage("/next-session-insight-ui.js", "buildNextSessionInsight");
   await checkPage("/program-missed-session-ui.js", "resolve_missed_session");
   await checkPage("/program-adjustment-explain-ui.js", "WHY THIS CHANGED");
