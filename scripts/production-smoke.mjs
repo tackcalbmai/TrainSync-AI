@@ -41,10 +41,23 @@ async function checkStatus(path, status, options = {}) {
   console.log(`PASS ${path} -> ${status}`);
 }
 
+async function checkSecurityHeaders() {
+  const { response } = await fetchText("/");
+  const csp = response.headers.get("content-security-policy") || "";
+  requireValue(response.headers.get("x-frame-options") === "DENY", "X-Frame-Options must be DENY");
+  requireValue(csp.includes("default-src 'self'"), "CSP default-src is missing");
+  requireValue(csp.includes("script-src 'self' https://cdn.jsdelivr.net"), "CSP script-src does not preserve pinned Supabase JS CDN access");
+  requireValue(csp.includes("connect-src 'self' https://sjihbrpbhfttuyzmbfku.supabase.co"), "CSP connect-src does not preserve Supabase access");
+  requireValue(csp.includes("frame-ancestors 'none'"), "CSP clickjacking protection is missing");
+  requireValue(!/script-src[^;]*'unsafe-inline'/.test(csp), "CSP unexpectedly permits inline scripts");
+  console.log("PASS production security headers");
+}
+
 async function main() {
   console.log(`TrainSync production smoke: ${BASE_URL}`);
 
   await checkPage("/", ["TRAINSYNC", "/next-session-insight-ui.js", "id=\"lastPublish\""]);
+  await checkSecurityHeaders();
   await checkPage("/workout", ["LIVE WORKOUT", "/workout-substitution-ui.js"]);
   await checkPage("/program", ["PROGRAM", "/program-missed-session-ui.js", "/program-adjustment-explain-ui.js"]);
   await checkPage("/history", "TRAINING RECORD");
