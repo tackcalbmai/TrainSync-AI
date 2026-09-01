@@ -1,11 +1,20 @@
 const BASE_URL = String(process.env.BASE_URL || "https://trainsyncai.vercel.app").replace(/\/$/, "");
 const TIMEOUT_MS = 15000;
 
-async function fetchText(path) {
-  const response = await fetch(`${BASE_URL}${path}`, { signal:AbortSignal.timeout(TIMEOUT_MS), redirect:"follow" });
+async function request(path, options = {}) {
+  const response = await fetch(`${BASE_URL}${path}`, {
+    signal:AbortSignal.timeout(TIMEOUT_MS),
+    redirect:"follow",
+    ...options,
+  });
   const text = await response.text();
-  if (!response.ok) throw new Error(`${path} returned ${response.status}`);
   return { response, text };
+}
+
+async function fetchText(path) {
+  const result = await request(path);
+  if (!result.response.ok) throw new Error(`${path} returned ${result.response.status}`);
+  return result;
 }
 
 async function fetchJson(path) {
@@ -18,18 +27,37 @@ function requireValue(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-async function checkPage(path, marker) {
+async function checkPage(path, markers) {
   const { text } = await fetchText(path);
-  requireValue(text.includes(marker), `${path} is missing expected marker: ${marker}`);
+  for (const marker of Array.isArray(markers) ? markers : [markers]) {
+    requireValue(text.includes(marker), `${path} is missing expected marker: ${marker}`);
+  }
   console.log(`PASS ${path}`);
+}
+
+async function checkStatus(path, status, options = {}) {
+  const { response } = await request(path, options);
+  requireValue(response.status === status, `${path} returned ${response.status}; expected ${status}`);
+  console.log(`PASS ${path} -> ${status}`);
 }
 
 async function main() {
   console.log(`TrainSync production smoke: ${BASE_URL}`);
-  await checkPage("/", "TRAINSYNC");
-  await checkPage("/workout", "LIVE WORKOUT");
-  await checkPage("/program", "PROGRAM");
-  await checkPage("/integrations", "GARMIN");
+
+  await checkPage("/", ["TRAINSYNC", "/next-session-insight-ui.js", "id=\"lastPublish\""]);
+  await checkPage("/workout", ["LIVE WORKOUT", "/workout-substitution-ui.js"]);
+  await checkPage("/program", ["PROGRAM", "/program-missed-session-ui.js", "/program-adjustment-explain-ui.js"]);
+  await checkPage("/history", "TRAINING RECORD");
+  await checkPage("/progress", "PERFORMANCE SIGNAL");
+  await checkPage("/profile", "ATHLETE CONTEXT");
+  await checkPage("/integrations", "GARMIN INTEGRATION");
+  await checkPage("/reset-password", "Choose a new password");
+  await checkPage("/oauth/consent", "SECURE AUTHORIZATION");
+  await checkPage("/manifest.webmanifest", "TrainSync AI");
+  await checkPage("/sw.js", "trainsync-v21");
+  await checkPage("/next-session-insight-ui.js", "buildNextSessionInsight");
+  await checkPage("/program-missed-session-ui.js", "resolve_missed_session");
+  await checkPage("/program-adjustment-explain-ui.js", "WHY THIS CHANGED");
 
   const science = await fetchJson("/api/science");
   requireValue(science?.ok === true, "/api/science is not healthy");
@@ -46,6 +74,18 @@ async function main() {
     requireValue(health.garmin.mockReady === true, "mock Garmin projection/test capability is not ready");
   }
   console.log("PASS /api/health");
+
+  const oauth = await fetchJson("/api/oauth-status");
+  requireValue(oauth?.oauthServerEnabled === true, "OAuth discovery is not healthy");
+  requireValue(Boolean(oauth?.authorizationEndpoint), "OAuth authorization endpoint is missing");
+  requireValue(Boolean(oauth?.tokenEndpoint), "OAuth token endpoint is missing");
+  console.log("PASS /api/oauth-status");
+
+  await checkStatus("/mcp", 401);
+  await checkStatus("/api/import-fit", 401, { method:"POST", headers:{ "Content-Type":"application/octet-stream" }, body:new Uint8Array() });
+  await checkStatus("/api/generate", 401, { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ intent:"smoke-test-auth-boundary" }) });
+  await checkStatus("/api/program-generate", 401, { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({}) });
+
   console.log("PRODUCTION_SMOKE_OK");
 }
 
