@@ -9,8 +9,8 @@ Strength-first AI workout control system for Garmin Connect.
 - natural-language strength workout generation for push, pull, upper, lower and full-body sessions;
 - canonical exercise → sets → reps → rest structure;
 - deterministic validation;
-- idempotent `MockTrainingProvider` publication;
-- local API endpoints for generate / validate / publish;
+- deterministic Garmin FIT projection checks with explicit `MOCK` status;
+- API endpoints for generation, validation and provider-boundary testing;
 - ChatGPT MCP server scaffold with focused tools;
 - live Supabase email/password auth and per-user workout persistence with RLS;
 - production-ready private Garmin token storage boundary for the later OAuth phase.
@@ -32,17 +32,9 @@ npm test
 npm run check
 ```
 
-## Run the ChatGPT MCP server
+## ChatGPT MCP endpoint
 
-The MCP process uses the package versions shown in the current OpenAI plugin quickstart.
-
-```bash
-cd mcp
-npm install
-npm start
-```
-
-It exposes `http://localhost:8787/mcp` using Streamable HTTP. Connect it through ChatGPT developer mode after exposing it through HTTPS or deploying it.
+The authenticated MCP endpoint is deployed at `/mcp` and shares the root lockfile and production API runtime. It can create, list and validate canonical TrainSync workout drafts. It cannot publish or schedule workouts to Garmin while official Garmin access is unavailable. `MOCK` means projection testing only, not a connected Garmin account.
 
 ## Production path
 
