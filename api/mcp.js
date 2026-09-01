@@ -1,29 +1,55 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
-import { stableHash, validateWorkout, workoutSummary } from "../lib/workout.mjs";
-import { getMockConnectionStatus, publishWorkoutMock } from "../lib/mock-garmin.mjs";
+import { EXERCISE_CATALOG } from "../lib/exercise-catalog.mjs";
+import { normalizeMcpWorkoutDraft } from "../lib/mcp-workout-draft.mjs";
+import { validateWorkout, workoutSummary } from "../lib/workout.mjs";
 import {
   authenticateBearerToken,
   listWorkoutsForUser,
-  savePublicationForUser,
   upsertWorkoutForUser,
 } from "../lib/supabase-mcp.mjs";
 
 const RESOURCE_METADATA_URL = "https://trainsyncai.vercel.app/.well-known/oauth-protected-resource/mcp";
 
-const setSchema = z.object({
+const exerciseKeys = Object.keys(EXERCISE_CATALOG).sort();
+const exerciseKeySchema = z.enum(exerciseKeys);
+const repSetSchema = z.object({
   index: z.number().int().positive(),
+  metricType: z.literal("reps"),
   targetReps: z.number().int().min(1).max(100),
+  minReps: z.number().int().min(1).max(100),
+  maxReps: z.number().int().min(1).max(100),
   weightKg: z.number().nonnegative().nullable(),
+  targetRir: z.number().min(0).max(6).nullable(),
+  restSec: z.number().int().min(0).max(900),
+});
+const durationSetSchema = z.object({
+  index: z.number().int().positive(),
+  metricType: z.literal("duration_seconds"),
+  targetDurationSeconds: z.number().int().min(1).max(3600),
+  minDurationSeconds: z.number().int().min(1).max(3600),
+  maxDurationSeconds: z.number().int().min(1).max(3600),
+  weightKg: z.number().nonnegative().nullable(),
+  targetRir: z.number().min(0).max(6).nullable(),
   restSec: z.number().int().min(0).max(900),
 });
 const exerciseSchema = z.object({
+  exerciseKey: exerciseKeySchema,
   name: z.string().min(1),
   group: z.string().min(1),
   notes: z.string(),
-  garminExerciseKey: z.string().nullable(),
-  sets: z.array(setSchema).min(1),
+  movementPattern: z.string().min(1),
+  loadType: z.string().min(1),
+  requiredEquipment: z.array(z.string()),
+  primaryMuscles: z.array(z.string()).min(1),
+  secondaryMuscles: z.array(z.string()),
+  fatigueTags: z.array(z.string()),
+  progressionMode: z.string().min(1),
+  setMetric: z.enum(["reps", "duration_seconds"]),
+  catalogVersion: z.string().min(1),
+  exerciseFamily: z.string().min(1),
+  sets: z.array(z.union([repSetSchema, durationSetSchema])).min(1),
 });
 const workoutSchema = z.object({
   id: z.string().min(1),
@@ -32,6 +58,8 @@ const workoutSchema = z.object({
   sport: z.literal("strength"),
   intensity: z.enum(["easy", "moderate", "heavy"]),
   source: z.string(),
+  exerciseCatalogEnforced: z.literal(true),
+  exerciseCatalogVersion: z.string().min(1),
   scheduledDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   timezone: z.string().min(1),
   estimatedDurationMinutes: z.number().int().min(1).max(360),
@@ -41,14 +69,23 @@ const workoutSchema = z.object({
   exercises: z.array(exerciseSchema).min(1),
   createdAt: z.string(),
 });
-const draftSetInputSchema = z.object({
+const draftRepSetInputSchema = z.object({
+  metricType: z.literal("reps"),
   targetReps: z.number().int().min(1).max(100),
   weightKg: z.number().nonnegative().nullable().default(null),
+  targetRir: z.number().min(0).max(6).nullable().default(null),
   restSec: z.number().int().min(0).max(900),
 });
+const draftDurationSetInputSchema = z.object({
+  metricType: z.literal("duration_seconds"),
+  targetDurationSeconds: z.number().int().min(1).max(3600),
+  weightKg: z.number().nonnegative().nullable().default(null),
+  targetRir: z.number().min(0).max(6).nullable().default(null),
+  restSec: z.number().int().min(0).max(900),
+});
+const draftSetInputSchema = z.discriminatedUnion("metricType", [draftRepSetInputSchema, draftDurationSetInputSchema]);
 const draftExerciseInputSchema = z.object({
-  name: z.string().min(1),
-  group: z.string().min(1),
+  exerciseKey: exerciseKeySchema,
   notes: z.string().default(""),
   sets: z.array(draftSetInputSchema).min(1).max(12),
 });
@@ -64,72 +101,44 @@ const summarySchema = z.object({
   status: z.string(),
 });
 
-function normalizeDraft(args) {
-  const exercises = args.exercises.map((item) => ({
-    name: item.name.trim(),
-    group: item.group.trim(),
-    notes: item.notes?.trim?.() || "",
-    garminExerciseKey: null,
-    sets: item.sets.map((set, index) => ({
-      index: index + 1,
-      targetReps: set.targetReps,
-      weightKg: set.weightKg ?? null,
-      restSec: set.restSec,
-    })),
-  }));
-  const totalSets = exercises.reduce((sum, item) => sum + item.sets.length, 0);
-  const identity = JSON.stringify({
-    title: args.title,
-    scheduledDate: args.scheduledDate,
-    intensity: args.intensity,
-    durationMinutes: args.durationMinutes,
-    exercises,
-  });
-  return {
-    id: `wrk_${stableHash(identity)}`,
-    revision: 1,
-    title: args.title.trim(),
-    sport: "strength",
-    intensity: args.intensity,
-    source: "chatgpt",
-    scheduledDate: args.scheduledDate,
-    timezone: args.timezone,
-    estimatedDurationMinutes: args.durationMinutes,
-    totalSets,
-    status: "draft",
-    instructions: args.instructions?.trim?.() || "Use controlled form. Stop the set if technique breaks down.",
-    exercises,
-    createdAt: new Date().toISOString(),
-  };
-}
-
-function createTrainSyncServer(auth) {
+export function createTrainSyncServer(auth) {
   const userId = auth.user.id;
   const server = new McpServer(
-    { name: "trainsync-ai", version: "0.4.0" },
+    { name: "trainsync-ai", version: "0.5.0" },
     {
       instructions:
-        "Authenticated strength-training toolset. Program exercises, sets, reps, rest and optional working weights from the user's request and context, then call create_workout_draft. Drafts are saved to the authenticated TrainSync account. Validate before publishing. Only call publish_workout when the user explicitly asks to send, publish, or schedule to Garmin. Garmin is currently mock-only and does not modify a real Garmin account.",
+        "Authenticated strength-training toolset. Use only canonical TrainSync exercise keys when creating drafts. Drafts are saved to the authenticated TrainSync account. Official Garmin sync is unavailable: do not claim that a workout was sent, published, or scheduled to Garmin. MOCK means projection testing only and cannot modify a Garmin account.",
     },
   );
 
   server.registerTool("get_connection_status", {
-    title: "Get Garmin connection status",
-    description: "Use this to check Garmin publishing availability before a publish workflow.",
+    title: "Get Garmin integration status",
+    description: "Use this to check whether official Garmin sync is available. MOCK is projection testing, not a connected account.",
     inputSchema: {},
     annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
   }, async () => {
-    const status = getMockConnectionStatus();
+    const status = {
+      provider:"garmin",
+      mode:"mock",
+      connected:false,
+      officialPublishingAvailable:false,
+      mockProjectionAvailable:true,
+      authenticated:true,
+      state:"official_access_pending",
+    };
     return {
-      structuredContent: { ...status, authenticated: true },
-      content: [{ type: "text", text: `TrainSync account authenticated. Garmin publishing is available in ${status.mode} mode.` }],
+      structuredContent: status,
+      content: [{
+        type:"text",
+        text:"TrainSync is authenticated. Garmin status: MOCK projection testing only. No Garmin account is connected and workouts cannot be sent, published, or scheduled to Garmin.",
+      }],
     };
   });
 
   server.registerTool("create_workout_draft", {
     title: "Create and save strength workout draft",
     description:
-      "Use this when the user asks you to create or prepare a strength workout. Program the exercises, sets, reps, rest and optional weights yourself. The draft is saved to the user's TrainSync account but is not published to Garmin.",
+      "Use this when the user asks you to create or prepare a strength workout. Choose canonical exerciseKey values and use the catalog metric for every set. The draft is saved to TrainSync and is not sent to Garmin.",
     inputSchema: {
       title: z.string().min(1),
       scheduledDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -151,7 +160,15 @@ function createTrainSyncServer(auth) {
     },
     annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false, idempotentHint: true },
   }, async (args) => {
-    const workout = normalizeDraft(args);
+    let workout;
+    try {
+      workout = normalizeMcpWorkoutDraft(args);
+    } catch (error) {
+      return {
+        isError:true,
+        content:[{ type:"text", text:`Workout draft rejected: ${error?.message || "invalid exercise prescription"}` }],
+      };
+    }
     const validation = validateWorkout(workout);
     if (!validation.valid) {
       return { isError: true, content: [{ type: "text", text: `Workout failed validation with ${validation.errors.length} error(s).` }] };
@@ -196,7 +213,7 @@ function createTrainSyncServer(auth) {
 
   server.registerTool("validate_workout", {
     title: "Validate strength workout",
-    description: "Use this to verify a complete TrainSync workout before Garmin publication.",
+    description: "Use this to verify canonical TrainSync workout structure and surface future Garmin-projection warnings.",
     inputSchema: { workout: workoutSchema },
     outputSchema: {
       valid: z.boolean(),
@@ -210,40 +227,7 @@ function createTrainSyncServer(auth) {
       structuredContent: result,
       content: [{
         type: "text",
-        text: result.valid ? `Workout is valid with ${result.warnings.length} Garmin-mapping warning(s).` : `Workout has ${result.errors.length} validation error(s).`,
-      }],
-    };
-  });
-
-  server.registerTool("publish_workout", {
-    title: "Publish workout to Garmin",
-    description:
-      "Use this only when the user explicitly asks to send, publish, or schedule a complete TrainSync workout to Garmin Connect. Current provider is mock-only.",
-    inputSchema: { workout: workoutSchema },
-    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true, idempotentHint: true },
-  }, async ({ workout }) => {
-    const validation = validateWorkout(workout);
-    if (!validation.valid) {
-      return { isError: true, content: [{ type: "text", text: `Cannot publish: ${validation.errors.length} validation error(s).` }] };
-    }
-    const result = publishWorkoutMock(workout);
-    const publishedWorkout = { ...workout, status: "published" };
-    const row = await upsertWorkoutForUser(auth.token, userId, publishedWorkout);
-    const publication = row?.id
-      ? await savePublicationForUser(auth.token, userId, row.id, publishedWorkout, result)
-      : null;
-    return {
-      structuredContent: {
-        ...result,
-        persistence: {
-          saved: Boolean(row?.id),
-          databaseId: row?.id || null,
-          publicationSaved: Boolean(publication?.id) || result.success,
-        },
-      },
-      content: [{
-        type: "text",
-        text: `${workout.title} published to Garmin in ${result.mode} mode for ${workout.scheduledDate} and saved to TrainSync history.`,
+        text: result.valid ? `Workout is valid with ${result.warnings.length} projection warning(s).` : `Workout has ${result.errors.length} validation error(s).`,
       }],
     };
   });
