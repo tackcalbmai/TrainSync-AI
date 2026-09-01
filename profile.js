@@ -1,4 +1,5 @@
 import { currentUser, getProfile, saveProfile, signOut } from "./lib/supabase-client.js";
+import { browserTimezone, normalizeSessionMinutes, normalizeTimezone } from "./lib/timezone.mjs";
 
 const $ = (selector) => document.querySelector(selector);
 const toast = $("#toast");
@@ -19,7 +20,7 @@ function fillProfile(profile) {
   $("#profileExperience").value = profile?.experience_level || "";
   $("#profileMinutes").value = profile?.default_workout_minutes || 50;
   $("#profileUnits").value = profile?.units === "imperial" ? "imperial" : "metric";
-  $("#profileTimezone").value = profile?.timezone || "Europe/Riga";
+  $("#profileTimezone").value = profile?.timezone || browserTimezone();
   const equipment = new Set(profile?.equipment || []);
   for (const input of document.querySelectorAll('#equipmentGrid input[type="checkbox"]')) input.checked = equipment.has(input.value);
 }
@@ -46,12 +47,14 @@ $("#profileForm").addEventListener("submit", async (event) => {
   button.disabled = true;
   $("#profileState").textContent = "SAVING…";
   try {
+    const timezone = normalizeTimezone($("#profileTimezone").value, browserTimezone());
+    const minutes = normalizeSessionMinutes($("#profileMinutes").value);
     await saveProfile({
       goal: $("#profileGoal").value || null,
       experience_level: $("#profileExperience").value || null,
-      default_workout_minutes: Number($("#profileMinutes").value) || 50,
+      default_workout_minutes: minutes,
       units: $("#profileUnits").value,
-      timezone: $("#profileTimezone").value.trim() || "Europe/Riga",
+      timezone,
       equipment: selectedEquipment(),
     });
     $("#profileState").textContent = "PERSONALIZED";
