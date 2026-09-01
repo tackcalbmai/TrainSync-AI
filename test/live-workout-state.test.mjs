@@ -45,9 +45,10 @@ function workout() {
 }
 
 test("creates resumable deterministic queue from workout", () => {
-  const state = createLiveWorkoutState({ workout:workout(), workoutDbId:"w-1", startedAt:"2026-08-28T05:00:00.000Z" });
+  const state = createLiveWorkoutState({ workout:workout(), workoutDbId:"w-1", completionId:"11111111-1111-4111-8111-111111111111", startedAt:"2026-08-28T05:00:00.000Z" });
   assert.equal(state.queue.length, 3);
   assert.equal(state.workoutDbId, "w-1");
+  assert.equal(state.completionId, "11111111-1111-4111-8111-111111111111");
   assert.equal(currentLiveSet(state).exerciseKey, "barbell_bench_press");
   assert.deepEqual(liveWorkoutProgress(state), { total:3, completed:0, skipped:0, pending:3, handled:0, percent:0 });
 });
