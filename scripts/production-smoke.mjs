@@ -41,6 +41,13 @@ async function checkStatus(path, status, options = {}) {
   console.log(`PASS ${path} -> ${status}`);
 }
 
+async function checkMethodBoundary(path, method, allow) {
+  const { response } = await request(path, { method });
+  requireValue(response.status === 405, `${method} ${path} returned ${response.status}; expected 405`);
+  requireValue(response.headers.get("allow") === allow, `${method} ${path} returned an invalid Allow header`);
+  console.log(`PASS ${method} ${path} -> 405 Allow: ${allow}`);
+}
+
 async function checkSecurityHeaders() {
   const { response } = await fetchText("/");
   const csp = response.headers.get("content-security-policy") || "";
@@ -99,6 +106,9 @@ async function main() {
   await checkStatus("/api/import-fit", 401, { method:"POST", headers:{ "Content-Type":"application/octet-stream" }, body:new Uint8Array() });
   await checkStatus("/api/generate", 401, { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ intent:"smoke-test-auth-boundary" }) });
   await checkStatus("/api/program-generate", 401, { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({}) });
+  await checkMethodBoundary("/api/health", "POST", "GET");
+  await checkMethodBoundary("/api/generate", "GET", "POST");
+  await checkMethodBoundary("/api/import-fit", "PATCH", "GET, POST");
 
   console.log("PRODUCTION_SMOKE_OK");
 }

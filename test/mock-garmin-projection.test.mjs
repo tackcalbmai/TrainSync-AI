@@ -41,7 +41,7 @@ test("mock publish remains mock-only but exercises the real Garmin projection la
   assert.equal(result.mode, "mock");
   assert.match(result.providerResourceId, /^gmn_mock_/);
   assert.equal(result.fitProjection.valid, true);
-  assert.equal(result.fitProjection.fitProfileVersion, "21.213.0");
+  assert.equal(result.fitProjection.fitProfileVersion, "21.214.0");
   assert.equal(result.fitProjection.summary.workSetCount, 2);
   assert.equal(result.fitProjection.summary.mappedSets, 2);
   assert.equal(result.fitProjection.summary.rangeTargetSets, 1);

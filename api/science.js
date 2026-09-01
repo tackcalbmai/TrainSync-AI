@@ -4,9 +4,10 @@ import { ADAPTATION_SCIENCE_VERSION, validateAdaptationEvidence } from "../lib/a
 import { buildProgramAdjustmentAudit, SCIENTIFIC_AUDIT_VERSION, validateProgramAdjustmentAudit } from "../lib/adaptation-audit.mjs";
 import { buildAdaptationAudit, decideExerciseAdaptation } from "../lib/adaptation-policy.mjs";
 import { applyAdaptationDecision, mergeDecisionAndMutationRuleKeys } from "../lib/prescription-mutation.mjs";
+import { methodNotAllowed } from "../lib/http.mjs";
 
 export default async function handler(req, res) {
-  if (req.method !== "GET") return res.status(405).json({ error: "METHOD_NOT_ALLOWED" });
+  if (req.method !== "GET") return methodNotAllowed(res, ["GET"]);
   const framework = validateScientificFramework(RULES);
   const adaptationEvidence = validateAdaptationEvidence();
   const sampleAdjustment = buildProgramAdjustmentAudit({
