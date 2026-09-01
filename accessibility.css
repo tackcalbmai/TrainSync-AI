@@ -1,0 +1,49 @@
+:root {
+  /* Small supporting copy must retain at least normal-text contrast on graphite. */
+  --dim: #737b82;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 3px solid rgba(200, 255, 53, 0.78);
+  outline-offset: 3px;
+}
+
+.bottom-nav :where(a, button):not(.active) {
+  color: #858d95 !important;
+}
+
+@media (max-width: 700px) {
+  :where(button, input, select) {
+    min-height: 44px;
+  }
+
+  :where(.program-back, .profile-back, .integration-back, .page-links a, .brand) {
+    min-height: 44px;
+  }
+
+  .bottom-nav :where(a, button) {
+    min-height: 48px;
+  }
+
+  :where(.day-grid span, .priority-muscle-grid span, .equipment-grid span) {
+    min-height: 44px;
+  }
+
+  :where(.auth-close, .log-close, .edit-close, .substitution-close) {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

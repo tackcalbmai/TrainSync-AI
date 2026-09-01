@@ -4,10 +4,11 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="theme-color" content="#090b0d" />
-  <meta name="description" content="Garmin training publish and results sync status for TrainSync AI." />
+  <meta name="description" content="Official Garmin access status and manual FIT activity import for TrainSync AI." />
   <link rel="icon" href="/icon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="/styles.css" />
   <link rel="stylesheet" href="/integrations.css" />
+  <link rel="stylesheet" href="/accessibility.css" />
   <title>Garmin Integration · TrainSync AI</title>
 </head>
 <body>
@@ -25,25 +26,25 @@
       <section class="integration-intro">
         <div class="eyebrow"><span></span> GARMIN INTEGRATION</div>
         <h1>Program out.<br><span>Results back.</span></h1>
-        <p>TrainSync keeps workout publishing and completed-activity ingestion as separate official Garmin boundaries. The FIT projection and ingestion engines are ready now; cloud-to-cloud Garmin APIs activate only after approved developer access and user consent.</p>
+        <p>TrainSync can validate workout projections and import exported FIT activity files today. Automatic Garmin send and receive stay disabled until Garmin grants official API access. No unofficial login APIs are used.</p>
       </section>
 
       <section class="integration-stack">
         <article class="integration-card">
           <div class="integration-card-head">
             <div>
-              <div class="eyebrow subtle">PROVIDER STATE</div>
-              <h2>Garmin Connect</h2>
+              <div class="eyebrow subtle">CONNECTION STATE</div>
+              <h2>Official API access pending</h2>
             </div>
             <span class="state-pill waiting" id="providerState">CHECKING GARMIN STATE</span>
           </div>
           <div class="status-grid">
             <div><small>TRAINING API</small><strong id="trainingApiState">CHECKING</strong></div>
             <div><small>ACTIVITY API</small><strong id="activityApiState">CHECKING</strong></div>
-            <div><small>FIT WORKOUT PROJECTION</small><strong id="fitProjectionState">READY</strong></div>
-            <div><small>FIT ACTIVITY INGESTION</small><strong class="ready">READY</strong></div>
+            <div><small>WORKOUT PROJECTION</small><strong id="fitProjectionState">READY</strong></div>
+            <div><small>FIT ACTIVITY IMPORT</small><strong class="ready">READY</strong></div>
             <div><small>AUTOMATIC RESULTS</small><strong id="autoSyncState">CHECKING</strong></div>
-            <div><small>MANUAL FIT TEST</small><strong class="ready">AVAILABLE</strong></div>
+            <div><small>MANUAL FIT IMPORT</small><strong class="ready">AVAILABLE</strong></div>
           </div>
           <p class="provider-note" id="providerNote">TrainSync never uses unofficial Garmin login APIs and never reports a mock publish as a real Garmin connection.</p>
         </article>
@@ -51,8 +52,8 @@
         <article class="integration-card import-card">
           <div class="integration-card-head">
             <div>
-              <div class="eyebrow subtle">TEST THE RESULTS PIPELINE</div>
-              <h2>Import a Garmin .FIT</h2>
+              <div class="eyebrow subtle">COMPLETED ACTIVITY</div>
+              <h2>Import a Garmin .FIT file</h2>
             </div>
             <span class="state-pill">AUTHENTICATED ONLY</span>
           </div>
@@ -63,7 +64,7 @@
             <small>Maximum 4 MB · .fit only · export ZIPs must be extracted first</small>
           </label>
           <div class="import-actions">
-            <div id="importHint">A strength FIT is parsed into sessions, sets, reps and weight. High-confidence matches close the planned TrainSync workout automatically.</div>
+            <div id="importHint">TrainSync reads strength sets, reps, time and weight. Only a high-confidence match can close a planned workout or influence the next prescription.</div>
             <button id="importButton" type="button" disabled>IMPORT FIT <b>↗</b></button>
           </div>
           <div class="import-result" id="importResult" hidden></div>

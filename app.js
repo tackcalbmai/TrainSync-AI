@@ -16,6 +16,9 @@ import {
 import { summarizeProgress } from "./lib/progress.mjs";
 import { validateWorkout } from "./lib/workout.mjs";
 import { completeProgramWorkout, loadNextActiveProgramWorkout } from "./lib/train-program-bridge.js";
+import { safeAuthenticatedAppPath } from "./lib/auth-redirect.mjs";
+import { browserTimezone } from "./lib/timezone.mjs";
+import { validateNewPassword } from "./lib/password-policy.mjs";
 
 const $ = (selector) => document.querySelector(selector);
 const commandInput = $("#commandInput");
@@ -31,6 +34,8 @@ let currentProfile = null;
 let deferredInstall = null;
 let manualCompletionId = null;
 let manualCompletionWorkoutId = null;
+let pendingAuthNext = null;
+let garminProviderMode = "mock";
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>\"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[char]));
@@ -167,7 +172,7 @@ async function loadProfileContext() {
 async function loadProgramWorkout() {
   if (!currentUser()) return false;
   try {
-    const result = await loadNextActiveProgramWorkout({ timezone:currentProfile?.timezone || "Europe/Riga" });
+    const result = await loadNextActiveProgramWorkout({ timezone:currentProfile?.timezone || browserTimezone() });
     if (!result?.workout) return false;
     currentWorkoutDbId = result.workoutDbId;
     renderWorkout(result.workout, result.validation);
@@ -208,7 +213,7 @@ async function buildWorkout({ demo = false } = {}) {
   const pulse = setInterval(() => { idx = Math.min(idx + 1, states.length - 1); processStrip.textContent = states[idx]; }, 420);
 
   try {
-    const timezone = currentProfile?.timezone || "Europe/Riga";
+    const timezone = currentProfile?.timezone || browserTimezone();
     const result = await api("/api/generate", { intent, timezone, demo }, { anonymous: demo });
     currentWorkoutDbId = null;
     renderWorkout(result.workout, result.validation);
@@ -229,22 +234,23 @@ async function buildWorkout({ demo = false } = {}) {
 
 async function publishWorkout() {
   if (!currentWorkout) return;
+  if (garminProviderMode !== "official") return showToast("Official Garmin sync is not available yet. No Garmin account was changed.");
   publishButton.disabled = true;
   processStrip.classList.add("active");
-  const states = ["RESOLVING GARMIN EXERCISES…", "VALIDATING WORKOUT STEPS…", "PUBLISHING TO MOCK PROVIDER…"];
+  const states = ["RESOLVING GARMIN EXERCISES…", "VALIDATING WORKOUT STEPS…", "SENDING THROUGH OFFICIAL GARMIN PROVIDER…"];
   for (const state of states) { processStrip.textContent = state; await new Promise((resolve) => setTimeout(resolve, 300)); }
   try {
     if (getSession() && !currentWorkoutDbId) await persistWorkout(currentWorkout);
     const result = await api("/api/publish", { workout:currentWorkout });
     currentWorkout = { ...currentWorkout, status:"published" };
     $("#lastPublish").textContent = "just now";
-    processStrip.textContent = `MOCK PUBLISHED · ${result.providerResourceId}`;
+    processStrip.textContent = `SENT TO GARMIN · ${result.providerResourceId}`;
     localStorage.setItem("trainsync:lastWorkout", JSON.stringify(currentWorkout));
     if (getSession() && currentWorkoutDbId) {
       await updateWorkoutStatus(currentWorkoutDbId, "published", currentWorkout);
       await savePublication({ workoutDbId:currentWorkoutDbId, workout:currentWorkout, result });
     }
-    showToast("Mock publish recorded. No Garmin account was changed.", true);
+    showToast("Workout sent through the official Garmin provider.", true);
   } catch (error) {
     processStrip.textContent = "PUBLISH FAILED";
     showToast(error.message);
@@ -388,28 +394,38 @@ async function submitLogSession(event) {
 
 function openAuth(mode = "signin") {
   const modal = $("#authModal");
+  const signingUp = mode === "signup";
   modal.hidden = false;
   document.body.classList.add("modal-open");
-  $("#authMode").textContent = mode === "signup" ? "CREATE ACCOUNT" : "SIGN IN";
-  $("#authSubmit").textContent = mode === "signup" ? "CREATE ACCOUNT" : "SIGN IN";
-  $("#authSwitch").textContent = mode === "signup" ? "Already have an account? Sign in" : "New here? Create account";
+  $("#authMode").textContent = signingUp ? "CREATE ACCOUNT" : "SIGN IN";
+  $("#authSubmit").textContent = signingUp ? "CREATE ACCOUNT" : "SIGN IN";
+  $("#authSwitch").textContent = signingUp ? "Already have an account? Sign in" : "New here? Create account";
+  $("#authPassword").autocomplete = signingUp ? "new-password" : "current-password";
+  $("#authPassword").minLength = signingUp ? 8 : 1;
   modal.dataset.mode = mode;
   setTimeout(() => $("#authEmail").focus(), 30);
 }
-function closeAuth() { $("#authModal").hidden = true; document.body.classList.remove("modal-open"); }
+function closeAuth() { pendingAuthNext = null; $("#authModal").hidden = true; document.body.classList.remove("modal-open"); }
 
 async function submitAuth(event) {
   event.preventDefault();
   const email = $("#authEmail").value.trim();
   const password = $("#authPassword").value;
   const submit = $("#authSubmit");
-  if (!email || password.length < 6) return showToast("Use a valid email and at least 6 characters.");
+  const signingUp = $("#authModal").dataset.mode === "signup";
+  if (!email || !password) return showToast("Enter your email and password.");
+  if (signingUp) {
+    const passwordCheck = validateNewPassword(password);
+    if (!passwordCheck.valid) return showToast(passwordCheck.message);
+  }
   submit.disabled = true;
   try {
-    const result = $("#authModal").dataset.mode === "signup" ? await signUp(email, password) : await signIn(email, password);
+    const result = signingUp ? await signUp(email, password) : await signIn(email, password);
     if (!result?.access_token) { showToast("Account created. Check your email if confirmation is required.", true); return; }
     setAuthUi();
+    const nextPath = pendingAuthNext;
     closeAuth();
+    if (nextPath) { location.assign(nextPath); return; }
     await loadProfileContext();
     const programLoaded = await loadProgramWorkout();
     if (!programLoaded && currentWorkout && !currentWorkout.programSessionId) {
@@ -424,6 +440,33 @@ async function submitAuth(event) {
 }
 
 async function accountAction() { if (!currentUser()) return openAuth("signin"); location.href = "/profile"; }
+
+function consumeRequestedAuth() {
+  const params = new URLSearchParams(location.search);
+  if (params.get("auth") !== "signin") return;
+  pendingAuthNext = safeAuthenticatedAppPath(params.get("next"), "/");
+  params.delete("auth");
+  params.delete("next");
+  const query = params.toString();
+  history.replaceState(null, "", `${location.pathname}${query ? `?${query}` : ""}${location.hash || ""}`);
+  openAuth("signin");
+}
+
+async function configureGarminPublishAction() {
+  try {
+    const session = getSession();
+    const headers = session?.access_token ? { Authorization:`Bearer ${session.access_token}` } : {};
+    const response = await fetch("/api/publish", { headers, signal:AbortSignal.timeout(8000) });
+    const status = await response.json();
+    garminProviderMode = status?.mode || "mock";
+    const available = garminProviderMode === "official" && status?.connected && status?.authorizationValid;
+    publishButton.hidden = !available;
+    if (available) publishButton.querySelector("span:last-child").textContent = "SEND TO GARMIN";
+  } catch {
+    garminProviderMode = "mock";
+    publishButton.hidden = true;
+  }
+}
 
 function renderHistory(rows) {
   const list = $("#historyList");
@@ -522,6 +565,8 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").cat
 
 async function initialize() {
   setAuthUi();
+  consumeRequestedAuth();
+  await configureGarminPublishAction();
   let programLoaded = false;
   if (currentUser()) {
     await loadProfileContext();

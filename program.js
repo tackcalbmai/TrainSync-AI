@@ -7,6 +7,7 @@ import {
   saveGeneratedProgram,
 } from "./lib/program-client.js";
 import { validateProgram } from "./lib/programming-engine.mjs";
+import { signInRedirectUrl } from "./lib/auth-redirect.mjs";
 
 const $ = (selector) => document.querySelector(selector);
 const toast = $("#toast");
@@ -327,7 +328,7 @@ $("#prevWeek").addEventListener("click", () => { weekIndex -= 1; renderWeek(); }
 $("#nextWeek").addEventListener("click", () => { weekIndex += 1; renderWeek(); });
 
 async function init() {
-  if (!currentUser()) { location.replace("/"); return; }
+  if (!currentUser()) { location.replace(signInRedirectUrl("/program")); return; }
   $("#weekStart").value = nextMonday();
   try {
     const athlete = await getProfile();

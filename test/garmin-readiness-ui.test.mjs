@@ -2,10 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { garminReadinessUiModel } from "../lib/garmin-readiness-ui.mjs";
 
-test("exact Garmin readiness is shown as publish ready", () => {
+test("exact Garmin readiness is shown as projection ready", () => {
   const model = garminReadinessUiModel({ ready:true, publishReady:true, reasonCode:"GARMIN_EXACT_TARGET_READY" });
   assert.equal(model.tone, "ready");
-  assert.equal(model.garminLabel, "GARMIN TARGETS READY");
+  assert.equal(model.garminLabel, "GARMIN PROJECTION READY");
   assert.equal(model.publishReady, true);
 });
 
@@ -18,7 +18,7 @@ test("range targets are clearly separated from workout validity", () => {
   }, { programSession:true });
   assert.equal(model.baseLabel, "PROGRAM SESSION READY");
   assert.equal(model.tone, "verification");
-  assert.equal(model.garminLabel, "GARMIN RANGES · DEVICE TEST REQUIRED");
+  assert.equal(model.garminLabel, "GARMIN RANGES · DEVICE VERIFICATION REQUIRED");
   assert.equal(model.publishReady, false);
   assert.match(model.explanation, /OPEN-step/);
 });

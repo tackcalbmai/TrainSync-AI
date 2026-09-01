@@ -1,6 +1,6 @@
-const CACHE = "trainsync-v21";
+const CACHE = "trainsync-v22";
 const ASSETS = [
-  "/", "/index.html", "/styles.css", "/workout-log.css", "/garmin-readiness-ui.css", "/next-session-insight.css", "/auth-ui.js", "/app.js", "/live-workout-launch.js", "/garmin-readiness-ui.js", "/next-session-insight-ui.js",
+  "/", "/index.html", "/styles.css", "/accessibility.css", "/dialog-accessibility.js", "/workout-log.css", "/garmin-readiness-ui.css", "/next-session-insight.css", "/auth-ui.js", "/app.js", "/live-workout-launch.js", "/garmin-readiness-ui.js", "/next-session-insight-ui.js",
   "/workout", "/workout.html", "/workout-live.css", "/workout-live.js", "/workout-substitution.css", "/workout-substitution-ui.js",
   "/reset-password", "/reset-password.html", "/reset-password.js",
   "/program", "/program.html", "/program.css", "/program-science.css", "/program-adjustment-explain.css", "/program-missed-session.css", "/program.js", "/program-adaptation-ui.js", "/program-adjustment-explain-ui.js", "/program-science-ui.js", "/program-missed-session-ui.js",
@@ -8,7 +8,7 @@ const ASSETS = [
   "/progress", "/progress.html", "/progress.js",
   "/profile", "/profile.html", "/profile.css", "/account-security.css", "/profile.js", "/account-security.js",
   "/integrations", "/integrations.html", "/integrations.css", "/integrations.js",
-  "/insights.css", "/lib/progress.mjs", "/lib/workout.mjs", "/lib/live-workout-state.mjs", "/lib/exercise-substitution.mjs", "/lib/programming-engine.mjs", "/lib/program-client.js", "/lib/program-session-workout.mjs", "/lib/train-program-bridge.js", "/lib/exercise-catalog.mjs", "/lib/missed-session-policy.mjs", "/lib/auth-redirect.mjs", "/lib/password-policy.mjs", "/lib/adaptation-explanation.mjs", "/lib/next-session-insight.mjs", "/lib/garmin-exercise-map.mjs", "/lib/garmin-target-policy.mjs", "/lib/garmin-workout-projection.mjs", "/lib/garmin-readiness-ui.mjs", "/lib/supabase-client.js",
+  "/insights.css", "/lib/progress.mjs", "/lib/workout.mjs", "/lib/live-workout-state.mjs", "/lib/exercise-substitution.mjs", "/lib/programming-engine.mjs", "/lib/program-client.js", "/lib/program-session-workout.mjs", "/lib/train-program-bridge.js", "/lib/exercise-catalog.mjs", "/lib/missed-session-policy.mjs", "/lib/auth-redirect.mjs", "/lib/password-policy.mjs", "/lib/timezone.mjs", "/lib/adaptation-explanation.mjs", "/lib/next-session-insight.mjs", "/lib/garmin-exercise-map.mjs", "/lib/garmin-target-policy.mjs", "/lib/garmin-workout-projection.mjs", "/lib/garmin-readiness-ui.mjs", "/lib/supabase-client.js",
   "/icon.svg", "/manifest.webmanifest"
 ];
 self.addEventListener("install", (event) => { self.skipWaiting(); event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(ASSETS))); });

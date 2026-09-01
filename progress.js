@@ -1,5 +1,6 @@
 import { currentUser, getProfile, listSetResults, listWorkoutSessions } from "./lib/supabase-client.js";
 import { summarizeProgress } from "./lib/progress.mjs";
+import { signInRedirectUrl } from "./lib/auth-redirect.mjs";
 
 const $ = (selector) => document.querySelector(selector);
 const KG_TO_LB = 2.2046226218;
@@ -74,7 +75,7 @@ function renderExerciseRows(exercises) {
 
 async function load() {
   if (!currentUser()) {
-    location.replace("/");
+    location.replace(signInRedirectUrl("/progress"));
     return;
   }
   try {

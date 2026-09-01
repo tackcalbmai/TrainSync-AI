@@ -43,8 +43,11 @@ test("all local static assets referenced by HTML exist", () => {
 
 test("PWA cache version and repaired feature assets stay in the offline bundle", () => {
   const serviceWorker = read("sw.js");
-  assert.match(serviceWorker, /trainsync-v21/);
+  assert.match(serviceWorker, /trainsync-v22/);
   for (const asset of [
+    "/accessibility.css",
+    "/dialog-accessibility.js",
+    "/lib/timezone.mjs",
     "/next-session-insight-ui.js",
     "/program-missed-session-ui.js",
     "/program-adjustment-explain-ui.js",
@@ -65,6 +68,7 @@ test("syntax gate covers every Vercel API function and stays within Hobby limit"
   for (const file of ["sw.js", "oauth-consent.js"]) {
     assert.ok(check.includes(file), `npm run check does not cover ${file}`);
   }
+  assert.match(String(pkg?.scripts?.precheck || ""), /dialog-accessibility\.js/);
 });
 
 test("production headers enforce a constrained browser security policy", () => {
